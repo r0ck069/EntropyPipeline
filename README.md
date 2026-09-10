@@ -165,3 +165,5 @@ progetto dimostra che ce n'è sempre bisogno.
 ## Licenza
 
 Distribuito sotto licenza MIT — vedi [LICENSE](LICENSE).
+
+app consigliate per la raccolta dei campioni, rode reporter, sensor logger.
