@@ -168,4 +168,12 @@ progetto dimostra che ce n'è sempre bisogno.
 
 Distribuito sotto licenza MIT — vedi [LICENSE](LICENSE).
 
-app consigliate per la raccolta dei campioni, rode reporter, sensor logger.
+## Per la raccolta delle sorgenti
+APP consigliate per la raccolta dei campioni da processare, rode reporter, sensor logger,
+registratore Audio di Hardcoded Joy, RecForge II.
+
+Uno o due telefoni cellulari ,una macchina fotografica che abbia la possibilita' di salvare
+le foto in raw, una o meglio due radio FM economiche a batterie, un dado in buone condizioni,
+una moneta possibilmente in buone condizioni e bilanciata (da 2 euro esce certificata dalla 
+Zecca di Stato) , 8 numeri della tombola, un file zip autocreato offline di qualche mega e 
+poi distrutto.
