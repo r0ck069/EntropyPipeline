@@ -11,7 +11,7 @@ con strumenti casalinghi e matematica ,senza avere pretese di uso reale. Solo pe
 Un solo file HTML. Nessun server, nessuna build, nessuna dipendenza da CDN o pacchetti
 npm. Apri `entropy_pipeline.html` in un browser moderno (Firefox, Chrome, ecc.) e funziona
 — pensato in particolare per l'uso offline su una sessione live di Linux (es. Ubuntu MATE
-Live), dove non è garantita/desiderata una connessione a internet.
+Live + Firefox ), dove non è necessaria una connessione a internet.
 
 ![status](https://img.shields.io/badge/status-didattico-orange)
 ![license](https://img.shields.io/badge/license-MIT-blue)
