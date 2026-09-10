@@ -5,7 +5,7 @@ sperimentare un pipeline completo di *entropy conditioning*: raccolta di bit gre
 stima di min-entropia (in stile NIST SP 800-90B) → estrazione del bias (Peres/von Neumann
 Extractor) → hashing universale (Toeplitz, GF(2), con bound del Leftover Hash Lemma) →
 output finale (doppio SHA-256, opzionalmente SHAKE256).
-Nato da un idea riflettendo sul caso COLDCARD di agosto 2026, sviluppare un metodo alternativo 
+Nato da un'idea riflettendo sul caso COLDCARD di agosto 2026, sviluppare un metodo alternativo 
 con strumenti casalinghi e matematica ,senza avere pretese di uso reale. Solo per usi didattici.
 
 Un solo file HTML. Nessun server, nessuna build, nessuna dipendenza da CDN o pacchetti
@@ -169,7 +169,7 @@ progetto dimostra che ce n'è sempre bisogno.
 Distribuito sotto licenza MIT — vedi [LICENSE](LICENSE).
 
 ## Per la raccolta delle sorgenti
-APP consigliate per la raccolta dei campioni da processare, rode reporter, sensor logger,
+APP consigliate per la raccolta dei campioni da processare, RØDE Reporter, sensor logger,
 registratore Audio di Hardcoded Joy, RecForge II.
 
 Uno o due telefoni cellulari ,una macchina fotografica che abbia la possibilita' di salvare
