@@ -6,7 +6,7 @@ stima di min-entropia (in stile NIST SP 800-90B) → estrazione del bias (Peres/
 Extractor) → hashing universale (Toeplitz, GF(2), con bound del Leftover Hash Lemma) →
 output finale (doppio SHA-256, opzionalmente SHAKE256).
 Nato da un idea riflettendo su caso COLDCARD di agosto 2026, sviluppare un metodo alternativo 
-con strumenti casalinghi e matematica.
+con strumenti casalinghi e matematica ,senza avere pretese di uso reale. Solo per usi didattici.
 
 Un solo file HTML. Nessun server, nessuna build, nessuna dipendenza da CDN o pacchetti
 npm. Apri `entropy_pipeline.html` in un browser moderno (Firefox, Chrome, ecc.) e funziona
