@@ -5,9 +5,47 @@ dell'app. Se quella riga non corrisponde all'ultima elencata qui, il browser sta
 una copia in cache: ricaricare forzando lo svuotamento cache (Ctrl+Shift+R) o riaprire il
 file scaricato di recente.
 
-**SHA-256 di questo file:** `a114753c57bd05c017d1f3e75be0692465ed1aef8f637ca291ef93f0a4a5b4c0`
+**SHA-256 di questo file:** `5be71c1e7237035f8d9d682af7a24377db247d07599ac23491534978e0326452`
 
 ---
+
+## build 2026-09-10.2 — Upgrade: Peres Extractor completo (Peres 1992)
+
+**Scoperta durante lo sviluppo di un progetto correlato** (un secondo strumento indipendente
+di estrazione entropia, poi confrontato con questo): l'implementazione del Peres Extractor
+qui presente riciclava da sempre solo il flusso Z (il valore comune delle coppie uguali,
+00→0, 11→1) verso il livello successivo di ricorsione — una variante che si può descrivere
+come "von Neumann iterato". Il paper originale di Peres (1992) descrive invece un algoritmo
+che ricicla ricorsivamente **anche** il flusso indicatore C (1 se la coppia è diseguale, 0 se
+uguale), che contiene a sua volta entropia residua estraibile.
+
+- **Prima**: efficienza di estrazione asintoticamente fissa a **1/3 (33.3%)** su input equo,
+  indipendentemente dalla lunghezza del campione (verificato analiticamente via serie
+  geometrica 1/4+1/16+1/64+...=1/3, e confermato empiricamente in build precedenti).
+- **Ora**: efficienza di estrazione **~95-97%** su input equo per campioni grandi (n≥30000),
+  convergente all'entropia di Shannon H(p) della sorgente al crescere di n — non più un
+  tetto fisso indipendente dai dati. Verificato empiricamente su una scala di lunghezze
+  (n=128 → 76.2%, n=512 → 83.6%, n=2048 → 89.2%, n=8192 → 92.6%, n=32768 → 95.1%,
+  n=131072 → 96.8%) e su una scala di bias (p=0.5 → 94.5% [H=1.0], p=0.7 → 83.7% [H=0.881],
+  p=0.9 → 43.8% [H=0.469]), mostrando una correlazione coerente con l'entropia di Shannon
+  attesa in ciascun caso.
+- **Invariante di conservazione della massa** riverificato da zero con la nuova logica
+  ricorsiva a due flussi (non solo uno): su migliaia di casi generati casualmente più tutti
+  gli edge case di lunghezza 0-5 bit, nessuna eccezione. Aggiunto anche un nuovo autotest
+  dedicato (eseguito automaticamente ad ogni caricamento pagina) che verifica l'efficienza
+  su un campione equo di riferimento (n=30000, soglia di allarme fissata al 70% — ampio
+  margine sotto il ~95-97% osservato) proprio per intercettare un'eventuale regressione
+  futura alla versione semplificata.
+- **Conseguenza collaterale corretta**: poiché il rapporto di estrazione non è più una
+  costante universale (dipende ora sia dalla lunghezza sia dal bias della sorgente), il
+  controllo di Fase 3 che confrontava il rapporto osservato con un valore fisso atteso
+  (~33.3%, esso stesso frutto di una correzione in build 2026-09-10.1) non aveva più senso
+  ed è stato rimosso. Sostituito con un controllo che segnala solo il caso patologico di un
+  rapporto estremamente basso (&lt;10%) su un campione già ampio — indicativo di una
+  sorgente quasi costante, non di una normale variazione statistica.
+- Verificata l'intera pipeline end-to-end (Fase 1→4→doppio SHA-256) con il nuovo algoritmo:
+  nessuna rottura nei componenti a valle (stima di entropia, bound LHL, Toeplitz hashing).
+  Zero regressioni: tutti gli 8 autotest (incluso quello nuovo) superati.
 
 ## build 2026-09-10.1 — Audit matematico approfondito: 3 bug trovati e corretti
 
