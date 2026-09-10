@@ -29,6 +29,12 @@ per chiavi che contano davvero.
 
 ### Fase 1 — Inserimento bit grezzi
 
+Per la raccolta dei dati grezzi da varie sorgenti vedere il file README.md
+Successivamente andranno processati per avere i bit da incollare nelle finestre successive
+(tool in sviluppo, stay tuned).
+Al momento si possono provare sequenze di bit prese da qualche bit generator online o da 
+qualche AI o generati in proprio.
+
 Ci sono 4 finestre (S1-S4), ciascuna indipendente. In ognuna incolla bit grezzi ottenuti
 con uno strumento **esterno** al tool (un TRNG hardware, `/dev/hwrng`, un generatore di
 rumore, ecc.) — il tool stesso non genera né simula entropia in nessuna finestra.
