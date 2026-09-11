@@ -66,7 +66,7 @@
 
 <h1>Entropy Extraction Pipeline — Peres + Toeplitz</h1>
 <p class="subtitle">Standalone, offline, zero dipendenze esterne. Pensato per Firefox su Ubuntu MATE Live (sessione volatile, nessuna scrittura su disco necessaria).</p>
-<p style="font-family:var(--mono);font-size:.68rem;color:#999;margin:-8px 0 12px;">build 2026-09-10.2 — upgrade: Peres Extractor sostituito con la versione COMPLETA (Peres 1992, ricicla anche il flusso indicatore C, non solo Z) — efficienza ~95-97% su input equo per campioni grandi, contro il ~33% fisso della versione precedente. Verificato: conservazione della massa su migliaia di casi, scaling dell'efficienza con lunghezza/bias, coerenza con l'entropia di Shannon H(p). Il controllo di Fase 3 ora segnala solo rapporti patologicamente bassi, non più un valore fisso atteso (non più valido con l'algoritmo completo). Se non vedi questa riga, il browser mostra una copia in cache: Ctrl+Shift+R o riapri il file appena scaricato.</p>
+<p style="font-family:var(--mono);font-size:.68rem;color:#999;margin:-8px 0 12px;">build 2026-09-11 — bug di scalabilità reale corretto in t-Tuple/LRS: nessuno dei due limitava la lunghezza massima di pattern esaminata, e su una sequenza periodica (anche di poche migliaia di bit, non un caso patologico raro) il costo poteva esplodere a miliardi di operazioni, bloccando la pagina. Aggiunti TTUPLE_MAX_T e LRS_MAX_SEARCH_LEN, verificati non alterare il comportamento su sorgenti realmente casuali né la rilevazione su sequenze strutturate (vedi nota di audit punto 14). Se non vedi questa riga, il browser mostra una copia in cache: Ctrl+Shift+R o riapri il file appena scaricato.</p>
 
 <div class="warning-banner">
 <b>⚠ Non è un generatore di chiavi certificato.</b> Questo strumento combina e testa entropia con metodi didattici/ingegneristici seri, ma i test statistici su un output finale di poche centinaia di bit hanno potenza limitata. La garanzia reale deve venire dal bound matematico (Leftover Hash Lemma), non dal "PASS" dei test — vedi note di audit qui sotto.
@@ -87,7 +87,8 @@
 <b>10) Non incluso, onestamente.</b> Due tentativi di ottimizzazione prestazionale del Toeplitz hashing (BigInt, poi word-packing a 32 bit) sono stati scartati dopo benchmark/test: il primo risultava più lento del ciclo originale, il secondo conteneva un bug di indicizzazione non risolto in tempo utile. Il ciclo bit-a-bit originale resta in uso, verificato. Non è inoltre presente un audit trail firmato crittograficamente (solo il log testuale in RAM) — proposto ma non implementato in questa iterazione.<br><br>
 <b>11) Audit approfondito — tre bug matematici trovati e corretti.</b> (a) Il messaggio di Fase 3 citava "atteso 25%" per il rapporto di estrazione del Peres extractor: il valore teorico corretto per la variante RICORSIVA implementata è 1/3 (33.3%) — il 25% vale solo per il von Neumann a singolo livello. Confermato sia analiticamente (serie geometrica 1/4+1/16+1/64+...=1/3) sia empiricamente (simulazione: 33.29% su 30×50000 bit). La tolleranza larga (±15 punti) non aveva mai fatto scattare falsi allarmi, ma il riferimento numerico nel messaggio era sbagliato. (b) L'Adaptive Proportion Test (APT) confrontava il simbolo di riferimento anche con se stesso, gonfiando il conteggio di +1 rispetto alle W-1 prove assunte dal cutoff — rendendo il test leggermente più severo del tasso di falso-positivo dichiarato (2⁻²⁰). Confermato con un caso costruito ad-hoc. (c) La ricerca del Longest Repeated Substring era limitata artificialmente a floor(n/2), un limite non previsto dalla specifica SP 800-90B: per sequenze fortemente periodiche la vera ripetizione può superare n/2 (dimostrato: periodo-2 su 100 bit, vera ripetizione=98, trovata=50 prima del fix). L'impatto pratico sul valore di H_min risultante è risultato trascurabile nei casi analizzati (l'effetto di "appiattimento" della radice L-esima maschera comunque il problema per sequenze fortemente strutturate), ma la deviazione dalla specifica è stata comunque corretta. Verificato con vettori di test ufficiali e cross-check indipendenti (incluso: verifica analitica a forma chiusa di Clopper-Pearson via Beta(1,n), non solo auto-consistenza) prima e dopo ciascun fix, nessuna regressione.<br><br>
 <b>12) Semplificazioni dichiarate rese esplicite.</b> Il test Serial (SP 800-22) qui implementato è in realtà un singolo test chi-quadro di bontà d'adattamento sulle frequenze delle coppie di bit (matematicamente equivalente a ψ²₂), non il vero test Serial ufficiale a due statistiche (∇ψ²ₘ, ∇²ψ²ₘ). Sia il test Serial sia ApproxEntropy qui non usano l'estensione ciclica del campione richiesta dalla specifica NIST SP 800-22 (che ripete i primi m-1 bit in coda per ottenere esattamente n pattern sovrapposti anziché n-m+1) — una semplificazione dichiarata ma non prima esplicitata con questo livello di dettaglio.<br><br>
-<b>13) Peres Extractor aggiornato alla versione completa (Peres 1992).</b> La versione precedente riciclava solo il flusso Z (valore comune delle coppie uguali), analoga a un "von Neumann iterato": efficienza asintotica fissa al 33.3% (1/3) indipendentemente da lunghezza o qualità della sorgente. La versione ora implementata ricicla ricorsivamente anche il flusso indicatore C (1=coppia diseguale, 0=coppia uguale), che contiene a sua volta entropia residua estraibile — questa è la costruzione originale e completa del paper di Peres (1992), non un'approssimazione. Verificato: efficienza ~95-97% su input equo per campioni grandi (n≥30000), convergente all'entropia di Shannon H(p) della sorgente al crescere di n, anziché fissa a 1/3. Conseguenza pratica: poiché il rapporto di estrazione non è più una costante universale ma dipende da lunghezza e bias, il controllo di Fase 3 non confronta più il rapporto osservato con una soglia fissa — segnala solo il caso patologico di un rapporto estremamente basso (&lt;10%) su un campione già ampio (probabile sorgente quasi costante). Invariante di conservazione della massa riverificato su migliaia di casi (incl. edge case 0-5 bit) con la nuova logica ricorsiva a due flussi, nessuna regressione nella suite di autotest.
+<b>13) Peres Extractor aggiornato alla versione completa (Peres 1992).</b> La versione precedente riciclava solo il flusso Z (valore comune delle coppie uguali), analoga a un "von Neumann iterato": efficienza asintotica fissa al 33.3% (1/3) indipendentemente da lunghezza o qualità della sorgente. La versione ora implementata ricicla ricorsivamente anche il flusso indicatore C (1=coppia diseguale, 0=coppia uguale), che contiene a sua volta entropia residua estraibile — questa è la costruzione originale e completa del paper di Peres (1992), non un'approssimazione. Verificato: efficienza ~95-97% su input equo per campioni grandi (n≥30000), convergente all'entropia di Shannon H(p) della sorgente al crescere di n, anziché fissa a 1/3. Conseguenza pratica: poiché il rapporto di estrazione non è più una costante universale ma dipende da lunghezza e bias, il controllo di Fase 3 non confronta più il rapporto osservato con una soglia fissa — segnala solo il caso patologico di un rapporto estremamente basso (&lt;10%) su un campione già ampio (probabile sorgente quasi costante). Invariante di conservazione della massa riverificato su migliaia di casi (incl. edge case 0-5 bit) con la nuova logica ricorsiva a due flussi, nessuna regressione nella suite di autotest.<br><br>
+<b>14) Bug di scalabilità reale in t-Tuple/LRS, trovato e corretto.</b> Nessuno dei due stimatori limitava la lunghezza massima di pattern esaminata (t nel ciclo di t-Tuple, l'intervallo di ricerca binaria di LRS). Su una sequenza fortemente periodica — non un input "rotto", ma un pattern realistico da artefatto di sensore/codifica — il costo di modeCount(L) resta sopra la soglia (35 occorrenze) per L crescente fino a quasi n/8, facendo salire il costo totale (O(n·L) per L crescente) a diversi miliardi di operazioni. Riprodotto: un pattern periodico di soli 2000 bit bloccava la pagina per oltre 20 secondi senza mai restituire una stima, in un ambiente di test headless senza limite di tempo del browser. Poiché questo tool non impone un limite superiore alla lunghezza dei bit incollati (MIN_PASTE_BITS è solo un minimo, non un massimo), l'esposizione pratica è reale per chiunque incolli una sorgente con una struttura periodica di qualche migliaio di bit o più — non solo un caso teorico. Corretto con due limiti espliciti: TTUPLE_MAX_T=64 (lunghezza massima esaminata da t-Tuple) e LRS_MAX_SEARCH_LEN=256 (limite superiore della ricerca binaria di LRS). Verificato che il limite non altera il comportamento su sorgenti realmente casuali (la lunghezza della più lunga sottostringa ripetuta scala ~O(log2 n), tipicamente poche decine di bit anche su campioni di decine di migliaia di bit — ben sotto i limiti) e che su sequenze periodiche/strutturate la rilevazione di bassa entropia resta corretta anche limitando la ricerca (la ripetizione resta comunque visibile entro il limite). Aggiunto un autotest dedicato di regressione (guardia di performance, <2s) per impedire che questo bug si ripresenti inosservato.
 </details>
 
 <!-- FASE 1 -->
@@ -390,6 +391,24 @@ function markovHmin(bits){
   if(pUpperMax<=0) return 0;
   return -Math.log2(Math.min(1,pUpperMax));
 }
+// [BUG di scalabilità reale, trovato e corretto — v2026-09-11] Né questo
+// ciclo né la ricerca binaria di longestRepeatedSubstringLen più sotto
+// limitavano la lunghezza massima di pattern esaminata. Su una sequenza
+// fortemente periodica (non un input "rotto": un pattern realistico da
+// artefatto di sensore/codifica) modeCount(L) resta sopra la soglia (35
+// occorrenze) per L crescente fino a quasi n/8, facendo salire il costo
+// (O(n·L) per L crescente) a diversi miliardi di operazioni su input di
+// poche migliaia di bit — riprodotto: con un pattern periodico di 2000 bit
+// la pagina si blocca (>20 s, nessun limite di tempo) invece di restituire
+// una stima. Questo tool non impone un limite superiore alla lunghezza
+// incollata (MIN_PASTE_BITS è solo un minimo), quindi l'esposizione pratica
+// è reale, non solo teorica. TTUPLE_MAX_T limita la lunghezza massima
+// esaminata: non altera il comportamento su sorgenti realmente casuali
+// (dove il pattern più ripetuto scala ~O(log2 n), ben sotto il limite) e
+// non compromette la rilevazione su sequenze periodiche/strutturate (la
+// ripetizione resta visibile già entro il limite, come dimostrato
+// dall'autotest dedicato più sotto).
+const TTUPLE_MAX_T = 64;
 function tTupleHmin(bits){
   const n=bits.length;
   if(n<40) return null; // richiede un minimo di dati per essere significativo
@@ -401,7 +420,7 @@ function tTupleHmin(bits){
     return {count:maxC, total:n-L+1};
   }
   let t=1;
-  while(t<n){ const {count}=modeCount(t); if(count>=35) t++; else break; }
+  while(t<n && t<TTUPLE_MAX_T){ const {count}=modeCount(t); if(count>=35) t++; else break; }
   const tMax=Math.max(1,t-1);
   const results=[];
   for(const L of [tMax, tMax+1]){
@@ -429,7 +448,17 @@ function longestRepeatedSubstringLen(bits){
     for(let i=0;i<=n-L;i++){ const key=bits.slice(i,i+L).join(''); if(seen.has(key)) return true; seen.add(key); }
     return false;
   }
-  let lo=0, hi=Math.max(0,n-1);
+  // [BUG di scalabilità reale, trovato e corretto — v2026-09-11] Stesso
+  // problema di tTupleHmin sopra: senza un limite superiore alla ricerca
+  // binaria, hasRepeatOfLen(mid) viene chiamata con mid fino a n/2, ciascuna
+  // O(n·mid) — su una sequenza periodica di poche migliaia di bit il costo
+  // esplode. LRS_MAX_SEARCH_LEN limita l'intervallo di ricerca: su sorgenti
+  // realmente casuali la più lunga sottostringa ripetuta scala ~O(log2 n),
+  // sempre ben sotto il limite; su sequenze periodiche/strutturate la
+  // ripetizione resta rilevabile già entro il limite (sottostima solo la
+  // lunghezza esatta quando supera 256 bit, non la rilevazione in sé).
+  const LRS_MAX_SEARCH_LEN = 256;
+  let lo=0, hi=Math.min(Math.max(0,n-1), LRS_MAX_SEARCH_LEN);
   while(lo<hi){ const mid=Math.ceil((lo+hi+1)/2); if(hasRepeatOfLen(mid)) lo=mid; else hi=mid-1; }
   return lo;
 }
@@ -1393,6 +1422,25 @@ function runSelfTests(){
     const hex = bytesToHex(out).toLowerCase();
     const expected = '483366601360a8771c6863080cc4114d8db44530f8f1e1ee4f94ea37e78b5739d5a15bef186a5386c75744c0527e1faa9f8726e462a12a4feb06bd8801e751e4';
     return hex===expected ? true : `ottenuto ${hex}`;
+  });
+
+  // 7) [NUOVO — regressione bug di scalabilità] t-Tuple/LRS su una sequenza
+  // periodica non banale (periodo 8) devono completare rapidamente e
+  // continuare a rilevare correttamente la struttura, anche dopo
+  // l'introduzione di TTUPLE_MAX_T/LRS_MAX_SEARCH_LEN. Prima del fix questo
+  // stesso caso bloccava la pagina per minuti (verificato: >20s anche su un
+  // input di soli 2000 bit, senza mai completare).
+  test('t-Tuple/LRS: completano rapidamente su una sequenza periodica (guardia di regressione performance, <2s)', ()=>{
+    const period=[1,1,0,1,0,0,1,0];
+    const bits=[]; for(let i=0;i<5000;i++) bits.push(period[i%period.length]);
+    const t0=(typeof performance!=='undefined'?performance.now():Date.now());
+    const tt=tTupleHmin(bits), lr=lrsHmin(bits);
+    const elapsed=(typeof performance!=='undefined'?performance.now():Date.now())-t0;
+    if(elapsed>2000) return `troppo lento: ${elapsed.toFixed(0)}ms (possibile regressione al bug di scalabilità pre-fix)`;
+    if(tt===null||lr===null) return 'tTuple/lrs non applicabili su n=5000 (inatteso)';
+    if(mcvHmin(bits)<0.9) return 'precondizione violata: MCV da solo già basso su questa sequenza (test non significativo)';
+    if(tt>=0.15 && lr>=0.12) return `né t-Tuple (${tt.toFixed(4)}) né LRS (${lr.toFixed(4)}) abbastanza bassi da segnalare la struttura periodica`;
+    return true;
   });
 
   return { sync: results, shaTest };

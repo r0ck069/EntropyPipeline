@@ -5,7 +5,40 @@ dell'app. Se quella riga non corrisponde all'ultima elencata qui, il browser sta
 una copia in cache: ricaricare forzando lo svuotamento cache (Ctrl+Shift+R) o riaprire il
 file scaricato di recente.
 
-**SHA-256 di questo file:** `5be71c1e7237035f8d9d682af7a24377db247d07599ac23491534978e0326452`
+**SHA-256 di questo file:** `975737dfb5495ae5a10c1d2da94faf51e019a339326b71c82be985a9d36e829e`
+
+---
+
+## build 2026-09-11 — Bug di scalabilità reale corretto: t-Tuple/LRS potevano bloccare la pagina
+
+**Scoperto testando il porting di questi stessi stimatori (t-Tuple, LRS) in due strumenti
+correlati** (che li importano da qui): né `tTupleHmin` né `longestRepeatedSubstringLen`
+limitavano la lunghezza massima di pattern esaminata. Su una sequenza fortemente periodica —
+non un input "rotto", ma un pattern realistico da artefatto di sensore/codifica — il costo di
+`modeCount(L)` resta sopra la soglia (35 occorrenze) per `L` crescente fino a quasi n/8,
+facendo salire il costo totale a diversi miliardi di operazioni.
+
+- **Riprodotto**: un pattern periodico di soli 2000 bit incollato in una qualunque finestra
+  bloccava la pagina per oltre 20 secondi senza mai restituire una stima (verificato in un
+  ambiente headless senza il limite di tempo che un browser reale applicherebbe comunque
+  all'utente in attesa).
+- **Esposizione reale, non solo teorica**: questo tool non impone un limite superiore alla
+  lunghezza dei bit incollati (`MIN_PASTE_BITS` è solo un minimo). Chiunque incolli una
+  sorgente con una struttura periodica di qualche migliaio di bit o più — es. un file audio
+  con un ronzio di rete non completamente filtrato, un dump con un header ripetuto per errore
+  — poteva bloccare la pagina.
+- **Corretto** con due limiti espliciti: `TTUPLE_MAX_T=64` (lunghezza massima esaminata da
+  t-Tuple) e `LRS_MAX_SEARCH_LEN=256` (limite superiore della ricerca binaria di LRS).
+  Verificato che il limite non altera il comportamento su sorgenti realmente casuali (la più
+  lunga sottostringa ripetuta scala ~O(log2 n), tipicamente poche decine di bit anche su
+  campioni di decine di migliaia di bit — ben sotto i limiti) e che su sequenze
+  periodiche/strutturate la rilevazione di bassa entropia resta corretta anche limitando la
+  ricerca (la ripetizione resta comunque visibile entro il limite).
+- Aggiunto un autotest dedicato di regressione (guardia di performance, soglia 2 secondi) per
+  impedire che questo bug si ripresenti inosservato.
+- Nessuna modifica di comportamento per sorgenti equo/moderatamente sbilanciate: verificato
+  con la suite di autotest completa (nessuna regressione) più una verifica end-to-end in
+  Node.js dedicata a questo fix.
 
 ---
 
