@@ -178,12 +178,12 @@ una moneta possibilmente in buone condizioni e bilanciata (da 2 euro esce certif
 Zecca di Stato) , 8 numeri della tombola, un file zip autocreato offline di qualche mega e 
 poi distrutto.
 
-con il microfono del telefono ed escludendo i filtri in ingresso,raw, mono (possibilmente queste
+Con il microfono del telefono ed escludendo i filtri in ingresso ,raw ,mono (possibilmente queste
 app lo fanno) , gia due o piu' minuti di audio in bar frequentato o di una mensa genera un audio
 con tanto materiale difficilmente prevedibile, buono da estrarre. O anche il campionamento dal
 sensore del giroscopio o magnetometro o accelerometro in una strada con buche e dossi ,puo' 
 esserci imprevedibilita' nei bit estratti. L'importante e' prendere sorgenti grezze campionate 
 che fra loro non hanno correlazioni apparenti, il segnale audio di due radio FM a batterie
-sintonizzate fuori frequenza, una foto completamente nera fatta in raw tappando l'obiettivo, 
-un giroscopio ed il rumore in un bar o una mensa affollata han ben poco in comune.
+sintonizzate fuori frequenza, due foto completamente nere fatte in raw tappando l'obiettivo, 
+il giroscopio del telefono ed il rumore in un bar o una mensa affollata han ben poco in comune.
 Basta che una sola tra le sorgenti scelte abbia "qualita' entropica".
