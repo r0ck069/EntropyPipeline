@@ -227,4 +227,5 @@ questa build è pensato proprio per questo caso d'uso. L'importante è prendere 
 grezze campionate che fra loro non abbiano correlazioni apparenti: il segnale audio di due
 radio FM a batterie sintonizzate fuori frequenza, una foto completamente nera fatta in raw
 tappando l'obiettivo, un giroscopio e il rumore in un bar o una mensa affollata hanno ben
-poco in comune. Basta che una sola tra le sorgenti scelte abbia "qualità entropica".
+poco in comune. Basta che una sola tra le sorgenti scelte abbia "qualità entropica", meglio
+se presi in autonomia con 2 telefoni diversi ed una reflex.
