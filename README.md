@@ -218,10 +218,8 @@ Uno o due telefoni cellulari, una macchina fotografica che abbia la possibilità
 le foto in RAW, una o meglio due radio FM economiche a batterie, un dado in buone condizioni,
 una moneta possibilmente in buone condizioni e bilanciata (da 2 euro esce certificata dalla
 Zecca di Stato), 8 numeri della tombola, un file zip autocreato offline di qualche mega e
-poi distrutto.
-
-Con il microfono del telefono ed escludendo i filtri in ingresso, raw, mono (possibilmente
-queste app lo fanno), già due o più minuti di audio in un bar frequentato o in una mensa
+poi distrutto.Con il microfono del telefono ed escludendo i filtri in ingresso, raw, mono 
+(queste app lo fanno), già due o più minuti di audio in un bar frequentato o in una mensa
 genera un audio con tanto materiale difficilmente prevedibile, buono da estrarre. O anche
 il campionamento dal sensore del giroscopio o magnetometro o accelerometro in una strada con
 buche e dossi, può esserci imprevedibilità nei bit estratti — l'assistente CSV/sensore di
