@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entropy Extraction Pipeline — Peres + Toeplitz (v2.0.0-beta2)</title>
+<title>Entropy Extraction Pipeline — Peres + Toeplitz (v2.0.0-beta3)</title>
 <style>
 :root{
   --bg:#f5f5f5; --card:#ffffff; --border:#ddd; --text:#222; --muted:#666;
@@ -645,7 +645,7 @@ function longestRunOnes(bits){
   const p = Math.max(0,Math.min(1, Math.exp(-chi2/2)));
   return [p,p];
 }
-// [SOSTITUITO — v2.0.0-beta2] Serial Test completo, conforme alla specifica NIST
+// [SOSTITUITO — v2.0.0-beta3] Serial Test completo, conforme alla specifica NIST
 // SP 800-22 (due statistiche ∇ψ²m e ∇²ψ²m, CON estensione ciclica del campione:
 // gli ultimi m-1 bit "avvolgono" sull'inizio, come richiesto dalla specifica —
 // la versione precedente (serialTestM2) era dichiaratamente un singolo
@@ -675,7 +675,7 @@ function serialTestFull(bits, m){
   const p2=igamc(Math.pow(2,m-3), d2/2);
   return [p1,p2];
 }
-// [SOSTITUITO — v2.0.0-beta2] Approximate Entropy completo, CON estensione
+// [SOSTITUITO — v2.0.0-beta3] Approximate Entropy completo, CON estensione
 // ciclica (stesso motivo della sostituzione sopra). Restituisce lo stesso
 // p-value in entrambe le colonne (un solo chi-quadro reale, come già faceva
 // longestRunOnes) — non due metodi indipendenti.
@@ -1388,7 +1388,7 @@ document.getElementById('btnPhase4').addEventListener('click', async ()=>{
 /* ============================== FASE 5 ============================== */
 document.getElementById('btnPhase5').addEventListener('click', ()=>{
   const pre = state.concatBits, post = state.finalOut;
-  // [AGGIORNATO — v2.0.0-beta2] Serial e ApproxEntropy sostituiti dalle versioni
+  // [AGGIORNATO — v2.0.0-beta3] Serial e ApproxEntropy sostituiti dalle versioni
   // complete conformi NIST (estensione ciclica). Aggiunti Cumulative Sums
   // (diretto+inverso) e Binary Matrix Rank — 4 nuove/aggiornate procedure su 15,
   // adottate da un'implementazione terza dopo verifica indipendente delle
@@ -1441,8 +1441,17 @@ document.getElementById('btnShake').addEventListener('click', ()=>{
   const bits = parseInt(document.getElementById('shakeBitsInput').value,10) || 256;
   const bytes = bytesFromBits(state.finalOut);
   const out = shake256(bytes, bits);
+  // [FIX — incoerenza reale trovata e segnalata dall'utente] L'output finale (doppio
+  // SHA-256) mostra da sempre sia i bit sequenziali sia l'esadecimale; questa sezione
+  // SHAKE256, aggiunta in seguito come opzionale, mostrava solo l'esadecimale — il
+  // requisito dei bit sequenziali non era mai stato applicato qui. bitsFromBytes(out)
+  // può restare più lunga di `bits` se il valore richiesto non è multiplo di 8 (l'ultimo
+  // byte prodotto da shake256() è comunque completo): troncata esplicitamente alla
+  // lunghezza esatta richiesta, non alla lunghezza arrotondata in byte.
+  const binStr = bitsFromBytes(out).slice(0, bits).join('');
   document.getElementById('shakeArea').innerHTML =
-    `<div class="final-box"><span class="lbl">SHAKE256 — ${bits} bit</span>${bytesToHex(out)}</div>`;
+    `<div class="final-box"><span class="lbl">Binario (${bits} bit)</span>${binStr}<br><br>
+     <span class="lbl">Esadecimale</span>${bytesToHex(out)}</div>`;
   log(`SHAKE256 calcolato: ${bits} bit`);
 });
 

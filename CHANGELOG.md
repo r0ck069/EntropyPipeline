@@ -1,5 +1,19 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
+## v2.0.0-beta3 — SHA-256: 36f86cd67b6b853b60fbe67c6c1b32655f800f634f6fc7b8d62ef22aff8a9f2f
+
+Incoerenza reale trovata dall'utente, non da un test automatico: l'output finale
+(doppio SHA-256) mostra da sempre sia i bit sequenziali sia l'esadecimale — il
+requisito originale era esplicitamente questo, "256 bit sequenziali in binario e
+come esadecimale". La sezione SHAKE256 (opzionale, aggiunta successivamente) però
+mostrava **solo l'esadecimale**: il requisito dei bit sequenziali non era mai stato
+applicato lì. Corretto: ora mostra anche i bit binari, troncati alla lunghezza
+ESATTA richiesta (non arrotondata al byte) per gestire correttamente il caso in
+cui l'utente chieda un numero di bit non multiplo di 8. Verificato con un caso a
+256 bit (default) e un caso limite a 20 bit — lunghezza binaria esatta confermata
+in entrambi, esadecimale invariato, autotest all'avvio 7/7 superati senza
+regressioni.
+
 Tutte le build sono identificabili dalla riga `build YYYY-MM-DD.N` mostrata sotto il titolo
 dell'app. Se quella riga non corrisponde all'ultima elencata qui, il browser sta mostrando
 una copia in cache: ricaricare forzando lo svuotamento cache (Ctrl+Shift+R) o riaprire il

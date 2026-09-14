@@ -1,6 +1,6 @@
 # Entropy Extraction Pipeline — Peres + Toeplitz
 
-> ⚠ **v2.0.0-beta2 — BETA  pubblicata su GitHub.** Contiene funzionalità nuove
+> ⚠ **v2.0.0-beta3 — BETA non ancora pubblicata su GitHub.** Contiene funzionalità nuove
 > non ancora sottoposte ad audit indipendente da terzi (sono state però verificate con una
 > suite di test rigorosa e reale — vedi `CHANGELOG.md`). Vedi anche `SECURITY-NOTES.md` per
 > i principi di design. Non usare per nulla che conti davvero finché non è stata verificata
@@ -39,7 +39,7 @@ contano davvero.
 
 - [Perché esiste](#perché-esiste)
 - [Funzionalità](#funzionalità)
-- [Novità della v2.0.0-beta2](#novità-della-v200-beta2)
+- [Novità della v2.0.0-beta3](#novità-della-v200-beta2)
 - [Come si usa](#come-si-usa)
 - [Struttura del repository](#struttura-del-repository)
 - [Fondamenti tecnici](#fondamenti-tecnici)
@@ -107,7 +107,7 @@ un'implementazione indipendente, vettori di test ufficiali SHA-256/SHAKE256,
 auto-consistenza statistica, tetto di emissione. Se qualcosa fallisse qui, è una
 regressione nel codice.
 
-## Novità della v2.0.0-beta2
+## Novità della v2.0.0-beta3
 
 Vedi `CHANGELOG.md` per il dettaglio completo, inclusa la sezione dedicata alla verifica
 matematica indipendente eseguita sui 4 test NIST nuovi/aggiornati. In sintesi: modalità di
@@ -132,7 +132,7 @@ Istruzioni dettagliate passo-passo: [ISTRUZIONI.md](ISTRUZIONI.md).
 
 ```
 .
-├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta2 (unico file necessario per l'uso)
+├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta3 (unico file necessario per l'uso)
 ├── ISTRUZIONI.md                # Guida all'uso passo-passo
 ├── CHANGELOG.md                 # Cronologia dettagliata di tutte le build e i bug corretti
 ├── AUDIT-NOTES.md               # Dettaglio completo delle note d'audit (spostato fuori dall'HTML)
@@ -175,7 +175,7 @@ sostituisce un health test in tempo reale su hardware fisico.
 "PASS" è indicativo, non probante.
 - La batteria NIST SP 800-22 copre 8 delle 15 procedure ufficiali (Serial e Approximate
 Entropy ora nella forma completa con estensione ciclica; Cumulative Sums e Binary Matrix
-Rank aggiunti in v2.0.0-beta2). Mancano ancora: DFT/Spettrale, Linear Complexity, Maurer's
+Rank aggiunti in v2.0.0-beta3). Mancano ancora: DFT/Spettrale, Linear Complexity, Maurer's
 Universal Statistical Test, Template Matching (×2), Random Excursions (×2) — dichiarato
 come tale, non conformità certificata NIST STS.
 
