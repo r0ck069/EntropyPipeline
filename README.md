@@ -1,6 +1,6 @@
 # Entropy Extraction Pipeline — Peres + Toeplitz
 
-> ⚠ **v2.0.0-beta3 — BETA non ancora pubblicata su GitHub.** Contiene funzionalità nuove
+> ⚠ **v2.0.0-beta3 — BETA pubblicata su GitHub.** Contiene funzionalità nuove
 > non ancora sottoposte ad audit indipendente da terzi (sono state però verificate con una
 > suite di test rigorosa e reale — vedi `CHANGELOG.md`). Vedi anche `SECURITY-NOTES.md` per
 > i principi di design. Non usare per nulla che conti davvero finché non è stata verificata
