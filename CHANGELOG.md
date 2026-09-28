@@ -1,5 +1,11 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
+## v2.0.0-beta4 — SHA-256: dfddb0a70f12cf1aeab5b6008380ddcc43cc573a6b59ce79e616b072da66bd7c
+
+**Correzione dello stimatore LRS (26/09/2026, commit 56aedff).** Bug segnalato da un audit indipendente: in `lrsHmin()` la lunghezza di confronto era `W = u+1` invece di `W = u`. A quella lunghezza nessuna sottostringa può ripetersi per definizione, quindi il conteggio massimo era sempre esattamente 1, qualunque fossero i dati: la statistica non misurava nulla. Il difetto andava in direzione prudente (sottostimava l'entropia), quindi non era un rischio di sicurezza, ma rendeva lo stimatore cieco alla struttura della sorgente. Corretto con `W = u`. Verificato con un confronto prima e dopo su dati di prova: con il bug il conteggio massimo era sempre 1; dopo la correzione è variabile e riflette i dati (nel test, 2).
+
+**Aggiornamento dell'etichetta di build (28/09/2026).** Il titolo della pagina è stato portato da `v2.0.0-beta3` a `v2.0.0-beta4`. Oltre alla correzione sopra e al titolo, nessun'altra riga è cambiata. Lo SHA-256 nell'intestazione di questa voce si riferisce alla pagina con la nuova etichetta. I commenti nel codice che citano `v2.0.0-beta3` (righe 648, 678, 1391) descrivono modifiche di quella versione e sono rimasti invariati.
+
 ## v2.0.0-beta3 — SHA-256: 36f86cd67b6b853b60fbe67c6c1b32655f800f634f6fc7b8d62ef22aff8a9f2f
 
 Incoerenza reale trovata dall'utente, non da un test automatico: l'output finale
