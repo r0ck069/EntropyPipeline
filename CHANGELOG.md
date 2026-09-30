@@ -1,5 +1,22 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
+## v2.0.0-beta5 (2026-09-30) — SHA-256: e604a7b627611ab24af974c01302f8f9dbfac813d4b9a368539cf87f6fc94c57
+
+**Allineamento di etichette e documentazione. Nessuna modifica al codice JavaScript.** Il 30/09/2026 è stata fatta una ricerca completa su tutti i file del repository pubblicato (commit `d7477a4`) e tutte le incoerenze trovate sono state corrette in un'unica pubblicazione, invece di correggere singole righe: la beta4 aveva cambiato solo il titolo e ne aveva lasciate altre.
+
+Modifiche:
+
+- `entropy_pipeline.html` — titolo portato a `v2.0.0-beta5`. Sottotitolo (riga 65) corretto: «Build 2.0.0-beta2 (2026-09-13) — BETA NON AUDITATA, non ancora pubblicata su GitHub» è ora «Build 2.0.0-beta5 (2026-09-30) — BETA NON AUDITATA». Sono cambiate solo queste due righe; «BETA NON AUDITATA» è invariato.
+- `README.md` — versione (riga 3) e albero dei file portati a beta5. Indice corretto: il link «Novità» puntava a `#novità-della-v200-beta2`, che non corrispondeva al titolo della sezione. Aggiunta la sezione «Novità della v2.0.0-beta5»; la sezione precedente è stata rinominata «Novità della serie v2.0.0 fino alla beta3», perché descriveva funzionalità introdotte nelle beta precedenti e non solo nella beta3. Corretto il conteggio dei test NIST SP 800-22: 8 test, cioè 7 delle 15 procedure (prima «8 di 15»; Cumulative Sums diretto e inverso sono una sola procedura), e aggiunto Block Frequency all'elenco di quelle non implementate. Cumulative Sums e Binary Matrix Rank sono attribuiti alla beta2, come da questo CHANGELOG e da AUDIT-NOTES (prima: beta3).
+- `ISTRUZIONI.md` — corretta la riga di verifica della versione (citava `build 2026-09-08.9`); descrizione della Fase 4 allineata al codice (menu ε con cinque valori, tetto a metà dei bit, campo `m` vuoto = 256); elenco dei test della Fase 5 portato a 8; aggiunta la sezione sull'assistente opzionale; elenco dei file del pacchetto completo.
+- `AUDIT-NOTES.md` — aggiunto il punto 15 (correzione LRS del 26/09/2026); annotato come superato il punto 12 e aggiornato il limite sul test Serial; aggiunta una nota di stato.
+- `SECURITY-NOTES.md` — aggiunta una nota di stato (repository pubblico).
+- `CHANGELOG.md` — questa voce; annotate le voci storiche beta1, beta2 (dicitura «non ancora pubblicata su GitHub») e beta3 (data mancante).
+
+**Verifica.** Il blocco `<script id="core-script">` è identico byte per byte a quello della beta4: SHA-256 del blocco `ff2d42be3be34c9f5aa28d34da5902de1b92f84f3b59eabf16b9c4d2062f4773`. È il valore che il pannello «Integrità dell'applicazione» mostra al caricamento; calcolato con la stessa procedura (testo del blocco codificato in UTF-8), non verificato in un browser. Fino alla beta4 il CHANGELOG riportava solo l'hash del file intero. Sintassi del blocco di codice controllata con `node --check`.
+
+**Non modificato.** I commenti nel codice che citano `v2.0.0-beta3` (righe 648, 678, 1391), dentro il blocco di codice: attribuiscono alla beta3 la sostituzione di Serial e Approximate Entropy, mentre questo CHANGELOG e AUDIT-NOTES la attribuiscono alla beta2; la discrepanza storica non è risolta. Il testo della sezione «Per la raccolta delle sorgenti» del README (testo dell'autore).
+
 ## v2.0.0-beta4 — SHA-256: dfddb0a70f12cf1aeab5b6008380ddcc43cc573a6b59ce79e616b072da66bd7c
 
 **Correzione dello stimatore LRS (26/09/2026, commit 56aedff).** Bug segnalato da un audit indipendente: in `lrsHmin()` la lunghezza di confronto era `W = u+1` invece di `W = u`. A quella lunghezza nessuna sottostringa può ripetersi per definizione, quindi il conteggio massimo era sempre esattamente 1, qualunque fossero i dati: la statistica non misurava nulla. Il difetto andava in direzione prudente (sottostimava l'entropia), quindi non era un rischio di sicurezza, ma rendeva lo stimatore cieco alla struttura della sorgente. Corretto con `W = u`. Verificato con un confronto prima e dopo su dati di prova: con il bug il conteggio massimo era sempre 1; dopo la correzione è variabile e riflette i dati (nel test, 2).
@@ -7,6 +24,8 @@
 **Aggiornamento dell'etichetta di build (28/09/2026).** Il titolo della pagina è stato portato da `v2.0.0-beta3` a `v2.0.0-beta4`. Oltre alla correzione sopra e al titolo, nessun'altra riga è cambiata. Lo SHA-256 nell'intestazione di questa voce si riferisce alla pagina con la nuova etichetta. I commenti nel codice che citano `v2.0.0-beta3` (righe 648, 678, 1391) descrivono modifiche di quella versione e sono rimasti invariati.
 
 ## v2.0.0-beta3 — SHA-256: 36f86cd67b6b853b60fbe67c6c1b32655f800f634f6fc7b8d62ef22aff8a9f2f
+
+> Nota (2026-09-30): questa voce non riporta la data. Il file con questo hash è quello del commit `6887e9b` del 2026-09-14 (da `git log`).
 
 Incoerenza reale trovata dall'utente, non da un test automatico: l'output finale
 (doppio SHA-256) mostra da sempre sia i bit sequenziali sia l'esadecimale — il
@@ -28,6 +47,8 @@ file scaricato di recente.
 ---
 
 ## v2.0.0-beta2 (2026-09-13) — BETA, non ancora pubblicata su GitHub
+
+> Nota (2026-09-30): la dicitura «non ancora pubblicata su GitHub» è storica, valida alla data di questa voce; il repository è ora pubblico.
 
 **Stato: da verificare e auditare prima del rilascio pubblico.** SHA-256 del file
 `entropy_pipeline.html` di questa build:
@@ -200,6 +221,8 @@ effettivamente raggiungibile con dati reali, quando la formula lo consente.
 ---
 
 ## v2.0.0-beta1 (2026-09-12) — BETA, non ancora pubblicata su GitHub
+
+> Nota (2026-09-30): la dicitura «non ancora pubblicata su GitHub» è storica, valida alla data di questa voce; il repository è ora pubblico.
 
 **Stato: da verificare e auditare prima del rilascio pubblico.** Questa build introduce
 funzionalità nuove non ancora sottoposte allo stesso livello di audit indipendente delle

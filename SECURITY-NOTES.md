@@ -109,3 +109,6 @@ codice, chiarisce solo perché il pattern non si applica qui e dove è già
 implicitamente rispettato) e non sono ancora stati sottoposti allo stesso
 livello di verifica indipendente degli altri — vanno controllati
 esplicitamente in fase di audit prima di un rilascio pubblico.
+
+Nota (30/09/2026, v2.0.0-beta5): il repository è ora pubblico su GitHub come BETA; la
+formula «prima di un rilascio pubblico» è rimasta dal testo originale della beta2.

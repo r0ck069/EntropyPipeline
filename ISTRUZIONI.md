@@ -27,6 +27,16 @@ per chiavi che contano davvero.
 
 ## Come si usa, passo per passo
 
+### Assistente opzionale — dati numerici → bit grezzi (prima di Fase 1)
+
+Incolla letture numeriche (accelerometro, giroscopio, CSV di sensori; spazi, virgole o tab
+come separatori). L'assistente **non genera entropia**: prova più combinazioni di scala,
+numero di LSB, modalità (valore diretto o differenza) e interleave fra colonne, tiene quella
+con il punteggio migliore (bilanciamento 0/1, Shannon, bassa autocorrelazione, lunghezza) ed
+estrae i bit meno significativi realmente presenti nei dati incollati. Scegli la sorgente di
+destinazione e premi "Invia bit alla sorgente scelta": i bit restano soggetti alla stessa
+stima di min-entropia di Fase 1.
+
 ### Fase 1 — Inserimento bit grezzi
 
 Per la raccolta dei dati grezzi da varie sorgenti vedere il file README.md
@@ -72,14 +82,17 @@ segnale di bug interno, non un problema dei tuoi dati.
 
 ### Fase 4 — Toeplitz Hashing
 
-Imposta `m` (i bit di output desiderati) oppure lascia il campo vuoto per farlo proporre
-in automatico. Il tool calcola il vincolo di sicurezza (Leftover Hash Lemma):
+Imposta `m` (i bit di output desiderati; se lasci il campo vuoto viene usato 256). Il tool
+calcola il vincolo di sicurezza (Leftover Hash Lemma) e applica anche un tetto: `m` non
+supera mai la metà dei bit in uscita dalla Fase 3.
 
-- Se l'entropia raccolta è sufficiente, usa il margine **standard** (160 bit, distanza
-  statistica dall'uniforme ≤2⁻⁸⁰ — livello adatto a materiale crittografico).
-- Se non è raggiungibile (tipico con input limitati, es. una sola sorgente da 256 bit), il
-  tool propone un margine **ridotto** (32 bit, ≤2⁻¹⁶) — solo dopo una tua conferma esplicita,
-  perché adatto solo a scopi dimostrativi/di test, non a chiavi reali.
+- Scegli il margine ε dal menu: 2⁻⁸⁰ (standard, predefinito, livello adatto a materiale
+  crittografico), 2⁻⁶⁴, 2⁻⁴⁰, 2⁻²⁰ o 2⁻¹⁶. Per ε = 2⁻ᵏ il margine è di 2×k bit (160 bit
+  per lo standard).
+- Se l'entropia disponibile non basta per `m` con il margine scelto, il tool si ferma e
+  indica quanti bit servirebbero: riduci `m` oppure scegli un ε meno stretto.
+- Sotto lo standard (2⁻⁸⁰) il tool chiede una conferma esplicita, una sola volta per
+  sessione: adatto solo a scopi dimostrativi/di test, non a chiavi reali.
 
 Il seed della matrice di Toeplitz viene generato automaticamente combinando il timestamp
 CPU (per rendere ogni esecuzione tracciabile/unica) con `crypto.getRandomValues` (per la
@@ -88,11 +101,12 @@ mano. Un campo di override manuale resta disponibile per utenti avanzati.
 
 ### Fase 5 — Test statistici NIST-style
 
-Premi "Esegui FASE 5" per una batteria di test (Frequency, Runs, Longest Run, Serial,
-Approximate Entropy) applicati sia ai bit di ingresso (PRE) sia all'output di Fase 4 (POST),
-ciascuno calcolato con due metodi numerici indipendenti per un controllo incrociato. Se
-l'output è troppo corto perché un test sia significativo, viene mostrato **N/A**, non un
-fallimento — non confondere i due casi.
+Premi "Esegui FASE 5" per una batteria di 8 test (Frequency, Runs, Longest Run, Serial,
+Approximate Entropy, Cumulative Sums diretto e inverso, Binary Matrix Rank) applicati sia ai
+bit di ingresso (PRE) sia all'output di Fase 4 (POST). Frequency e Runs sono calcolati con
+due metodi numerici indipendenti per un controllo incrociato. Se l'output è troppo corto
+perché un test sia significativo, viene mostrato **N/A**, non un fallimento — non confondere
+i due casi.
 
 ### Output finale
 
@@ -114,13 +128,20 @@ fallimento — non confondere i due casi.
 
 ## Verificare di avere l'ultima versione
 
-Sotto il titolo trovi una riga tipo `build 2026-09-08.9 — ...`. Confrontala con il file
-CHANGELOG.md incluso in questo pacchetto. Se non coincide, il browser sta probabilmente
-mostrando una copia in cache: ricarica forzando lo svuotamento cache (in Firefox:
-Ctrl+Shift+R) o riapri il file scaricato di recente.
+Sotto il titolo trovi una riga tipo `Build 2.0.0-beta5 (2026-09-30) — BETA NON AUDITATA.`.
+Confrontala con la voce in cima al file CHANGELOG.md incluso in questo pacchetto. Se non
+coincide, il browser sta probabilmente mostrando una copia in cache: ricarica forzando lo
+svuotamento cache (in Firefox: Ctrl+Shift+R) o riapri il file scaricato di recente.
+Puoi anche calcolare `sha256sum entropy_pipeline.html` e confrontare il risultato con
+l'hash nell'intestazione di quella voce.
 
 ## Contenuto di questo pacchetto
 
 - `entropy_pipeline.html` — lo strumento vero e proprio, apribile direttamente nel browser.
 - `CHANGELOG.md` — cronologia dettagliata di tutte le correzioni e migliorie.
 - `ISTRUZIONI.md` — questo file.
+- `README.md` — panoramica, funzionalità, limiti noti e fondamenti tecnici.
+- `AUDIT-NOTES.md` — dettaglio completo delle note d'audit.
+- `SECURITY-NOTES.md` — principi di design trasversali del progetto.
+- `CONTRIBUTING.md` — linee guida per contribuire.
+- `LICENSE` — licenza MIT.

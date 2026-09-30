@@ -98,7 +98,9 @@
     800-22) qui implementato è in realtà un singolo chi-quadro sulle
     frequenze delle coppie di bit, non il vero test Serial ufficiale a due
     statistiche. Né Serial né ApproxEntropy usano l'estensione ciclica del
-    campione richiesta dalla specifica.
+    campione richiesta dalla specifica. *Superato: nella versione attuale Serial e
+    Approximate Entropy sono nella forma completa, con estensione ciclica (vedi «Limiti
+    architetturali» più sotto).*
 
 13. **Peres Extractor aggiornato alla versione completa (Peres 1992).** La
     versione precedente riciclava solo il flusso Z, efficienza fissa al
@@ -114,6 +116,14 @@
     secondi. Corretto con `TTUPLE_MAX_T=64` e `LRS_MAX_SEARCH_LEN=256`,
     verificati non alterare il comportamento su sorgenti realmente casuali.
 
+15. **Stimatore LRS con lunghezza di confronto sbagliata, trovato da un audit
+    indipendente e corretto (26/09/2026, v2.0.0-beta4).** In `lrsHmin()` la lunghezza era
+    `W = u+1` invece di `W = u`: a quella lunghezza nessuna sottostringa può ripetersi,
+    quindi il conteggio massimo era sempre 1 e la statistica non misurava nulla. Direzione
+    prudente (sottostimava l'entropia), quindi non un rischio di sicurezza, ma lo stimatore
+    era cieco alla struttura della sorgente. Corretto con `W = u`. Dettaglio e verifica
+    nella voce v2.0.0-beta4 di `CHANGELOG.md`.
+
 ## Limiti architetturali che nessuna correzione di bug elimina
 
 - Gira in un browser: nessun controllo su swap/paging della memoria,
@@ -123,8 +133,9 @@
   fisico.
 - I test statistici su un output di poche centinaia di bit hanno potenza
   limitata: un "PASS" è indicativo, non probante.
-- Il test Serial implementato è un singolo chi-quadro, non il vero test
-  ufficiale a due statistiche.
+- Il test Serial e l'Approximate Entropy sono ora nella forma completa (Serial con le due
+  statistiche ∇ψ² e ∇²ψ², estensione ciclica per entrambi). I test statistici restano però
+  un sottoinsieme: 7 delle 15 procedure NIST SP 800-22, in 8 test.
 
 ## Nota sulle nuove funzionalità della v2.0.0-beta2
 
@@ -141,3 +152,8 @@ falsi positivi su 300 sequenze CSPRNG reali — descritta per esteso in
 `CHANGELOG.md`. Il resto delle funzionalità nuove **non è ancora auditato**
 allo stesso livello di rigore dei punti 1-14 sopra — va verificato prima di
 un rilascio pubblico.
+
+**Stato al 30/09/2026 (v2.0.0-beta5).** Il repository è pubblico su GitHub come BETA: la
+formula «prima di un rilascio pubblico» qui sopra è rimasta dal testo originale della beta2.
+L'audit indipendente del 26/09/2026 ha trovato in questo strumento un difetto (punto 15),
+corretto nella v2.0.0-beta4.

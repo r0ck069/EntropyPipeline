@@ -1,6 +1,6 @@
 # Entropy Extraction Pipeline — Peres + Toeplitz
 
-> ⚠ **v2.0.0-beta3 — BETA pubblicata su GitHub.** Contiene funzionalità nuove
+> ⚠ **v2.0.0-beta5 — BETA pubblicata su GitHub.** Contiene funzionalità nuove
 > non ancora sottoposte ad audit indipendente da terzi (sono state però verificate con una
 > suite di test rigorosa e reale — vedi `CHANGELOG.md`). Vedi anche `SECURITY-NOTES.md` per
 > i principi di design. Non usare per nulla che conti davvero finché non è stata verificata
@@ -39,7 +39,8 @@ contano davvero.
 
 - [Perché esiste](#perché-esiste)
 - [Funzionalità](#funzionalità)
-- [Novità della v2.0.0-beta3](#novità-della-v200-beta2)
+- [Novità della v2.0.0-beta5](#novità-della-v200-beta5)
+- [Novità della serie v2.0.0 fino alla beta3](#novità-della-serie-v200-fino-alla-beta3)
 - [Come si usa](#come-si-usa)
 - [Struttura del repository](#struttura-del-repository)
 - [Fondamenti tecnici](#fondamenti-tecnici)
@@ -88,7 +89,7 @@ con verifica di conservazione della massa ad ogni esecuzione.
 - **NUOVO — Margine di sicurezza LHL selezionabile** (ε=2⁻ᵏ, k=16/20/40/64/80) invece
 della sola scelta binaria standard/ridotto — richiede conferma esplicita sotto lo
 standard (k=80), una sola volta per sessione.
-- **Batteria di test statistici NIST SP 800-22 — 8 procedure** (Frequency, Runs, Longest
+- **Batteria di test statistici NIST SP 800-22 — 8 test (7 delle 15 procedure)** (Frequency, Runs, Longest
 Run, **Serial completo** con estensione ciclica, **Approximate Entropy completa** con
 estensione ciclica, **NUOVO Cumulative Sums** diretto e inverso, **NUOVO Binary Matrix
 Rank** 32×32), applicate sia pre- che post-estrazione. Le 4 procedure aggiuntive/corrette
@@ -107,14 +108,23 @@ un'implementazione indipendente, vettori di test ufficiali SHA-256/SHAKE256,
 auto-consistenza statistica, tetto di emissione. Se qualcosa fallisse qui, è una
 regressione nel codice.
 
-## Novità della v2.0.0-beta3
+## Novità della v2.0.0-beta5
+
+- **v2.0.0-beta4 (26/09/2026):** corretto lo stimatore LRS (`W = u` al posto di `W = u+1`),
+  difetto segnalato da un audit indipendente. Dettaglio in `CHANGELOG.md`.
+- **v2.0.0-beta5 (30/09/2026):** nessuna modifica al codice JavaScript. Allineati alla
+  situazione reale del repository pubblico l'etichetta di build nell'HTML, README,
+  ISTRUZIONI, AUDIT-NOTES, SECURITY-NOTES e CHANGELOG; corretto il conteggio dei test
+  NIST SP 800-22 (8 test, cioè 7 delle 15 procedure).
+
+## Novità della serie v2.0.0 fino alla beta3
 
 Vedi `CHANGELOG.md` per il dettaglio completo, inclusa la sezione dedicata alla verifica
 matematica indipendente eseguita sui 4 test NIST nuovi/aggiornati. In sintesi: modalità di
 combinazione multi-sorgente, tetto di emissione conservativo, pipeline di confronto
 XOR-LFSR, hash di integrità, margine LHL selezionabile, demo sbilanciata, assistente
-CSV/sensore, parsing di input più tollerante, batteria NIST estesa a 8 procedure
-conformi. Il nucleo matematico/crittografico storico (Peres, Toeplitz, SHA-256/SHAKE256,
+CSV/sensore, parsing di input più tollerante, batteria NIST estesa a 8 test (7 delle 15
+procedure) conformi. Il nucleo matematico/crittografico storico (Peres, Toeplitz, SHA-256/SHAKE256,
 Clopper-Pearson) è **invariato** rispetto alla build 2026-09-11. Le note d'audit
 dettagliate, prima incorporate nell'HTML, sono in `AUDIT-NOTES.md`; i principi di design
 trasversali sono in `SECURITY-NOTES.md`.
@@ -132,7 +142,7 @@ Istruzioni dettagliate passo-passo: [ISTRUZIONI.md](ISTRUZIONI.md).
 
 ```
 .
-├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta3 (unico file necessario per l'uso)
+├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta5 (unico file necessario per l'uso)
 ├── ISTRUZIONI.md                # Guida all'uso passo-passo
 ├── CHANGELOG.md                 # Cronologia dettagliata di tutte le build e i bug corretti
 ├── AUDIT-NOTES.md               # Dettaglio completo delle note d'audit (spostato fuori dall'HTML)
@@ -151,7 +161,7 @@ Istruzioni dettagliate passo-passo: [ISTRUZIONI.md](ISTRUZIONI.md).
 | Estrazione bias    | Peres Extractor (costruzione ricorsiva completa)                                    | Peres, 1992                            |
 | Hashing universale | Toeplitz matrix hashing su GF(2)                                                    | Toeplitz-hashing / universal hashing   |
 | Bound di sicurezza | Leftover Hash Lemma (ε=2⁻ᵏ selezionabile) + tetto di emissione ⌊input/2⌋ indipendente | Impagliazzo–Levin–Luby, 1989           |
-| Test statistici    | Frequency, Runs, Longest Run, Serial (completo), ApproxEntropy (completa), Cumulative Sums (×2), Binary Matrix Rank | NIST SP 800-22 (8 di 15 procedure) |
+| Test statistici    | Frequency, Runs, Longest Run, Serial (completo), ApproxEntropy (completa), Cumulative Sums (×2), Binary Matrix Rank | NIST SP 800-22 (7 di 15 procedure, 8 test) |
 | Output finale      | SHA-256 (doppio), SHAKE256 (XOF)                                                    | FIPS 180-4, FIPS 202                   |
 | Confronto          | Pipeline diagnostica XOR-LFSR (non protetta, solo per rilevare regressioni)          | —                                       |
 
@@ -173,11 +183,12 @@ controllo dell'utente.
 sostituisce un health test in tempo reale su hardware fisico.
 - I test statistici su un output di poche centinaia di bit hanno potenza limitata: un
 "PASS" è indicativo, non probante.
-- La batteria NIST SP 800-22 copre 8 delle 15 procedure ufficiali (Serial e Approximate
-Entropy ora nella forma completa con estensione ciclica; Cumulative Sums e Binary Matrix
-Rank aggiunti in v2.0.0-beta3). Mancano ancora: DFT/Spettrale, Linear Complexity, Maurer's
-Universal Statistical Test, Template Matching (×2), Random Excursions (×2) — dichiarato
-come tale, non conformità certificata NIST STS.
+- La batteria NIST SP 800-22 copre 7 delle 15 procedure ufficiali, in 8 test (Cumulative
+Sums diretto e inverso contano come una procedura sola; Serial e Approximate Entropy nella
+forma completa con estensione ciclica; Cumulative Sums e Binary Matrix Rank aggiunti in
+v2.0.0-beta2, come da CHANGELOG.md). Mancano ancora: Block Frequency, DFT/Spettrale, Linear
+Complexity, Maurer's Universal Statistical Test, Template Matching (×2), Random Excursions
+(×2) — dichiarato come tale, non conformità certificata NIST STS.
 
 ## Autotest
 
