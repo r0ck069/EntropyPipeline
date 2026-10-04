@@ -112,3 +112,9 @@ esplicitamente in fase di audit prima di un rilascio pubblico.
 
 Nota (30/09/2026, v2.0.0-beta5): il repository è ora pubblico su GitHub come BETA; la
 formula «prima di un rilascio pubblico» è rimasta dal testo originale della beta2.
+
+Nota (02/10/2026, v2.0.0-beta6): nessun principio cambia. Gli stimatori di min-entropia della
+pagina (LRS, Collisione, Compressione) sono ora validati contro l'output di `ea_non_iid`, il
+programma ufficiale del NIST, sugli stessi flussi di bit (`verifica-stimatori/`, `AUDIT-NOTES.md`
+punto 16). Per un seme vero il numero di riferimento resta quello di `ea_non_iid` sui bit
+effettivamente raccolti: la pagina ha 6 stimatori su 10 (mancano i quattro predittori).

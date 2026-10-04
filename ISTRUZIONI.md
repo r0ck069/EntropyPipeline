@@ -50,11 +50,15 @@ con uno strumento **esterno** al tool (un TRNG hardware, `/dev/hwrng`, un genera
 rumore, ecc.) — il tool stesso non genera né simula entropia in nessuna finestra.
 
 - Formato accettato: **esadecimale** oppure **binario puro** (solo caratteri `0` e `1`).
-- Lunghezza minima per finestra: **256 bit**.
+- Lunghezza minima per finestra: **256 bit**. Consigliato: almeno **600 bit**. Su bit
+  casuali ideali (CSPRNG del browser, 1000 prove per lunghezza) la stima scende sotto la
+  soglia di esclusione 0,3 circa il 9% delle volte a 256 bit, meno dell'1% a 400 bit e in nessuna
+  delle 1000 prove a 603 bit.
 - Basta compilarne anche **una sola**: le altre restano semplicemente vuote e vengono
   ignorate. Funziona con 1, 2, 3 o 4 sorgenti indistintamente.
 - Premi "Analizza" su ogni finestra compilata: mostra la stima di min-entropia (il minimo
-  fra più stimatori: MCV, Markov, t-Tuple, LRS) e l'esito di due health test retrospettivi
+  fra più stimatori: MCV, Markov, t-Tuple, LRS, Collisione e, da 6012 bit in su, Compressione)
+  e l'esito di due health test retrospettivi
   (RCT e APT) che intercettano pattern anomali (run troppo lunghi, bias locale).
 - Una sorgente con H_min troppo basso, o che fallisce RCT/APT, viene automaticamente
   esclusa dal calcolo successivo — non serve rimuoverla a mano.
@@ -120,7 +124,8 @@ i due casi.
 
 - Il pannello "Autotest all'avvio" esegue automaticamente, ad ogni caricamento della
   pagina, una serie di controlli di non-regressione (conservazione di massa, coerenza
-  Toeplitz, vettori di test SHA-256/SHAKE256, auto-consistenza statistica). Se qualcosa
+  Toeplitz, vettori di test SHA-256/SHAKE256, auto-consistenza statistica, stimatori
+  LRS/Collisione/Compressione contro i valori ufficiali). Se qualcosa
   qui risultasse rosso/fallito, **non fidarti dei risultati della pipeline** finché non
   viene risolto — significherebbe una regressione nel codice.
 - Il log di sessione, in fondo alla pagina, resta solo in RAM: non viene scritto su disco
@@ -128,7 +133,7 @@ i due casi.
 
 ## Verificare di avere l'ultima versione
 
-Sotto il titolo trovi una riga tipo `Build 2.0.0-beta5 (2026-09-30) — BETA NON AUDITATA.`.
+Sotto il titolo trovi una riga tipo `Build 2.0.0-beta6 (2026-10-02) — BETA NON AUDITATA.`.
 Confrontala con la voce in cima al file CHANGELOG.md incluso in questo pacchetto. Se non
 coincide, il browser sta probabilmente mostrando una copia in cache: ricarica forzando lo
 svuotamento cache (in Firefox: Ctrl+Shift+R) o riapri il file scaricato di recente.
@@ -144,4 +149,5 @@ l'hash nell'intestazione di quella voce.
 - `AUDIT-NOTES.md` — dettaglio completo delle note d'audit.
 - `SECURITY-NOTES.md` — principi di design trasversali del progetto.
 - `CONTRIBUTING.md` — linee guida per contribuire.
+- `verifica-stimatori/` — controlli (Python e Node) degli stimatori contro l'output ufficiale di `ea_non_iid`; non servono per usare lo strumento.
 - `LICENSE` — licenza MIT.

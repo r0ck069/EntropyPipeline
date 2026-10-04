@@ -54,6 +54,9 @@
    stimatori applicabili. Volutamente NON implementati: Collision Estimate
    (degenere su alfabeto binario) e Compression/Universal di Maurer
    (richiede campioni enormemente più grandi).
+   *[Nota del 02/10/2026, v2.0.0-beta6: superato dal punto 16. Il Collision Estimate non
+   è degenere su alfabeto binario: la norma lo definisce proprio per dati binari.
+   Collisione e Compressione sono ora implementati.]*
 
 7. **Health test retrospettivi (RCT/APT).** Repetition Count Test e
    Adaptive Proportion Test (SP 800-90B §4.4), applicati retrospettivamente
@@ -115,6 +118,8 @@
     a diversi miliardi di operazioni, bloccando la pagina per oltre 20
     secondi. Corretto con `TTUPLE_MAX_T=64` e `LRS_MAX_SEARCH_LEN=256`,
     verificati non alterare il comportamento su sorgenti realmente casuali.
+    *[Nota del 02/10/2026, v2.0.0-beta6: per l'LRS superato dal punto 16; la guardia di
+    scalabilità è ora `LRS_W_CAP = 52` e `LRS_MAX_SEARCH_LEN` non esiste più.]*
 
 15. **Stimatore LRS con lunghezza di confronto sbagliata, trovato da un audit
     indipendente e corretto (26/09/2026, v2.0.0-beta4).** In `lrsHmin()` la lunghezza era
@@ -123,6 +128,33 @@
     prudente (sottostimava l'entropia), quindi non un rischio di sicurezza, ma lo stimatore
     era cieco alla struttura della sorgente. Corretto con `W = u`. Dettaglio e verifica
     nella voce v2.0.0-beta4 di `CHANGELOG.md`.
+    *[Nota del 02/10/2026, v2.0.0-beta6: la funzione è stata riscritta, vedi punto 16.]*
+
+16. **Stimatori LRS, Collisione e Compressione allineati a SP 800-90B e validati contro lo
+    strumento ufficiale (02/10/2026, v2.0.0-beta6).** Misura: su bit casuali ideali la pagina
+    riportava H_min circa 0,43 (media 0,426 su 10 prove da 20.000 bit; il minimo era sempre
+    quello dell'LRS), mentre `ea_non_iid` dava 0,97-0,99 per l'LRS e 0,77 come minimo finale. Sui
+    tre flussi reali a 1.000.000 bit la pagina dava 0,456-0,468 contro 0,819-0,868. Causa:
+    l'LRS della pagina usava una sola lunghezza (la ripetizione massima, dove una tupla compare
+    al più due volte), prendeva il conteggio massimo e applicava il limite di Clopper-Pearson
+    PRIMA della radice W-esima, quindi su una ripetizione quasi unica il margine restava enorme.
+    La norma calcola la probabilità di collisione (somma C(c,2) / C(n-W+1,2)) per ogni W tra u e
+    v, ne prende il massimo e aggiunge il margine di confidenza solo alla fine. Corretto, e
+    aggiunti Collisione e Compressione, che mancavano. Verifica: H a 6 decimali uguale a quello
+    di `ea_non_iid` su sei flussi (14 confronti nel browser, 17 in Node, 44 in Python, vedi
+    `verifica-stimatori/`); il minimo combinato della pagina coincide con `H_original` su 5
+    flussi su 6 (sul sesto la pagina dà 0,8664 contro 0,8680: più prudente). Effetto: su bit
+    casuali ideali la sorgente non viene più esclusa a vuoto (603 bit: 0 su 1000 prove contro 42
+    della beta5; 256 bit: 89 su 1000 contro 114). Limiti, dichiarati: (a) solo 6 stimatori su
+    10: mancano i quattro predittori, che nei flussi confrontati erano sempre tra 0,96 e 1,00;
+    (b) la Compressione parte da 6012 bit ed è molto pessimista fino a circa 20.000 bit;
+    non è stato misurato come si comporti l'implementazione NIST tra 6012 e 20.000 bit;
+    (c) t-Tuple della pagina è più prudente dell'ufficiale di circa 0,02-0,07 e resta così per
+    scelta (02/10/2026); (d) MCV della pagina (Clopper-Pearson esatto) è circa 0,0003-0,012
+    meno prudente della formula del NIST; (e) oltre W = 52 la pagina restituisce 0 per l'LRS e
+    lo segnala (scelta prudente: il NIST darebbe un valore); (f) validazione solo su dati
+    binari a 1 bit per campione e su sei flussi; (g) il tempo su 1.000.000 bit è circa 24 s
+    nel browser usato per le prove.
 
 ## Limiti architetturali che nessuna correzione di bug elimina
 
@@ -152,6 +184,10 @@ falsi positivi su 300 sequenze CSPRNG reali — descritta per esteso in
 `CHANGELOG.md`. Il resto delle funzionalità nuove **non è ancora auditato**
 allo stesso livello di rigore dei punti 1-14 sopra — va verificato prima di
 un rilascio pubblico.
+
+**Stato al 02/10/2026 (v2.0.0-beta6).** Il punto 16 sostituisce l'LRS del punto 15 e
+aggiunge Collisione e Compressione; la formula «prima di un rilascio pubblico» qui sotto resta
+dal testo originale della beta2.
 
 **Stato al 30/09/2026 (v2.0.0-beta5).** Il repository è pubblico su GitHub come BETA: la
 formula «prima di un rilascio pubblico» qui sopra è rimasta dal testo originale della beta2.

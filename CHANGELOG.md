@@ -1,5 +1,38 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
+## v2.0.0-beta6 (2026-10-02) — SHA-256: 585df8012ce93ef78d847003788f954b5405e46ad893b6f77bdd49df73da0f1b
+
+**Stimatori LRS, Collisione e Compressione allineati a SP 800-90B e validati contro l'output ufficiale di `ea_non_iid`.** Il 01/10/2026 il confronto tra la Fase 1 della pagina e il programma ufficiale del NIST (compilato sul Raspberry Pi) sugli stessi flussi di bit ha mostrato che l'LRS della pagina era fuori scala; il 02/10/2026 sono stati riscritti e validati i tre stimatori. Le voci storiche che parlano di LRS (`W = u+1`, `W = u`, `LRS_MAX_SEARCH_LEN`) o di Collisione e Compressione «non implementati» descrivono il codice di quelle build e restano come storia; per lo stato attuale vale questa voce.
+
+**Il problema, misurato.**
+- Bit casuali ideali (CSPRNG del browser): H_min della pagina circa 0,43 (media 0,426 su 10 prove da 20.000 bit), sempre limitato dall'LRS; `ea_non_iid` dava LRS 0,97-0,99 e minimo finale 0,77.
+- Tre flussi reali a 1.000.000 bit (bit meno significativo di due registrazioni di cucina e radio e di una terza registrazione): pagina 0,456-0,468 contro 0,819-0,868 del NIST.
+- Causa: l'LRS della pagina guardava una sola lunghezza (la ripetizione massima, dove una tupla compare al più due volte), usava il conteggio massimo e il limite di Clopper-Pearson prima della radice W-esima. La norma calcola per ogni W tra u e v la probabilità di collisione, somma C(c,2) / C(n-W+1,2), ne prende il massimo e aggiunge il margine di confidenza solo dopo la radice.
+
+**Modifiche.**
+- `entropy_pipeline.html` — `lrsHmin()` riscritta secondo la norma (u = prima lunghezza con tupla più frequente sotto 35 occorrenze, v = ultima con almeno 2, massimo su W, poi margine 2,576); `longestRepeatedSubstringLen()` e `LRS_MAX_SEARCH_LEN` rimosse; guardia `LRS_W_CAP = 52` (oltre questo limite l'LRS restituisce 0 e la pagina lo segnala); aggiunte `collisionHmin()` e `compressionHmin()` (blocchi da 6 bit, d = 1000, richiede almeno 6012 bit); `combinedHmin()` include i nuovi valori nel minimo e nel dettaglio; la riga di Fase 1 mostra anche Collisione e Compressione; quattro autotest nuovi (11 in totale); titolo portato a `v2.0.0-beta6`; sottotitolo (riga 65) a «Build 2.0.0-beta6 (2026-10-02)».
+- `verifica-stimatori/` — nuova cartella: riferimento Python (`est90b_ref.py`), `validazione_90b.py`, `estimatori_check.js` (Node), `estrai_lsb.py`, `LEGGIMI.txt` e il flusso `flussi/r603.json`.
+- `README.md`, `ISTRUZIONI.md`, `AUDIT-NOTES.md` (nuovo punto 16 e note ai punti 6, 14 e 15), `SECURITY-NOTES.md` — allineati; questo `CHANGELOG.md`.
+
+**Verifica.**
+- H a 6 decimali uguale a `ea_non_iid` per LRS, Collisione e Compressione su sei flussi (603 bit casuali; cucina e AM a 100.000 bit; AM, cucina e un secondo file radio a 1.000.000 bit): 14 confronti nel browser (Chromium senza interfaccia), 17 in Node, 44 in Python (con media, sigma e p intermedi dove disponibili). I valori ufficiali sono quelli stampati da `ea_non_iid` sul Pi e incollati il 01/10/2026.
+- Il minimo combinato della pagina coincide con `H_original` ufficiale su 5 flussi su 6; sul sesto la pagina dà 0,8664 (t-Tuple) contro 0,8680 (Compressione): più prudente.
+- Autotest all'avvio: 11 su 11, nessun errore in console.
+- Falsi esclusi su bit casuali ideali (`crypto.getRandomValues`, soglia H_min < 0,3): 256 bit 89 su 1000 (beta5: 114), 400 bit 8 su 1000 (65), 603 bit 0 su 1000 (42), 2000 bit 0 su 400 (3 su 300). RCT e APT: nessun fallimento in 4100 prove tra 256 e 8000 bit. Mediana di H_min a 256 / 400 / 603 / 2000 bit: 0,41 / 0,46 / 0,51 / 0,62 (beta5: 0,35 / 0,37 / 0,38 / 0,39).
+- Sorgenti patologiche: sequenza costante, periodo 2, periodo 8 e 90% di uni danno H_min 0; 70% di uni dà 0,377 (il valore vero è 0,515).
+- Tempo: 1.000.000 bit circa 24 s (t-Tuple 12 s, LRS 8 s, Compressione 3,5 s; beta5 circa 29-32 s); 100.000 bit circa 1 s. Misurato in Chromium senza interfaccia sul computer delle prove.
+- SHA-256 del blocco `<script id="core-script">`: `db96d801827745654db23d51ff467913449d4a4ae8bd7bc42ec3f9b63a185528`. È il valore che il pannello «Integrità» mostra al caricamento e coincide con il calcolo indipendente sul testo tra i tag.
+
+**Non modificato.** t-Tuple (più prudente dell'ufficiale di circa 0,02-0,07; lasciato così per scelta dell'utente del 02/10/2026), MCV (Clopper-Pearson esatto, circa 0,0003-0,012 meno prudente della formula del NIST), Markov (più prudente dell'ufficiale), RCT/APT, Fasi 2-5, `HMIN_EXCLUDE` (0,3) e `MIN_PASTE_BITS` (256). I commenti nel codice che citano `v2.0.0-beta3` restano come nella beta5.
+
+**Non verificato, dichiarato.**
+- Sono 6 stimatori su 10: mancano MultiMCW, Lag, MultiMMC e LZ78Y. Nei sei flussi confrontati i predittori ufficiali erano sempre tra 0,96 e 1,00, ma su sorgenti con struttura diversa potrebbero dare valori più bassi.
+- La Compressione parte da 6012 bit ed è molto pessimista fino a circa 20.000 bit: H_min mediano 0,54 su 100 prove a 8000 bit (contro 0,62 a 2000 bit). Non è stato misurato come si comporti l'implementazione NIST tra 6012 e 20.000 bit.
+- Validazione solo su dati binari a 1 bit per campione e sui sei flussi indicati; MCV, Markov e t-Tuple non sono stati confrontati riga per riga.
+- Browser da telefono, aspetto grafico e comportamento di Firefox su Ubuntu MATE non provati; sul Raspberry Pi non è stato eseguito nulla.
+- Con più H_min per le stesse sorgenti, Fase 2 e successive accreditano più bit (a 603 bit casuali circa +33%, mediana 0,384 → 0,512): la catena Peres, Toeplitz e SHA non è stata rieseguita con i nuovi valori.
+- Il commit del software NIST compilato sul Pi non è registrato.
+
 ## v2.0.0-beta5 (2026-09-30) — SHA-256: e604a7b627611ab24af974c01302f8f9dbfac813d4b9a368539cf87f6fc94c57
 
 **Allineamento di etichette e documentazione. Nessuna modifica al codice JavaScript.** Il 30/09/2026 è stata fatta una ricerca completa su tutti i file del repository pubblicato (commit `d7477a4`) e tutte le incoerenze trovate sono state corrette in un'unica pubblicazione, invece di correggere singole righe: la beta4 aveva cambiato solo il titolo e ne aveva lasciate altre.
@@ -193,6 +226,8 @@ lista di byte con virgole e con prefisso "0x", rifiuto di caratteri non validi).
 SHAKE256 sopra descritto.
 
 ### Un risultato reale e onesto sulla min-entropia combinata di EntropyPipeline
+
+> Nota (2026-10-02): superato dalla v2.0.0-beta6. La causa descritta qui sotto (l'LRS) è stata corretta e confermata con i valori di `ea_non_iid`; resta come storia.
 
 Testando `combinedHmin()` — la funzione reale del tool, invariata rispetto alla v1 — su
 bit genuinamente casuali (`crypto.getRandomValues`, fino a 2.000.000 di bit, con
@@ -432,6 +467,7 @@ H_min=1.0 (perfetta!), t-Tuple/LRS la riconoscono correttamente come quasi priva
 La min-entropia finale della sorgente è il minimo fra tutti gli stimatori applicabili.
 Volutamente non implementati: Collision Estimate (degenere su alfabeto binario) e
 Compression/Universal di Maurer (richiede campioni troppo grandi per essere valido qui).
+(Nota 2026-10-02: superato dalla v2.0.0-beta6, che li implementa; il Collision Estimate non è degenere su alfabeto binario.)
 - **Health test retrospettivi RCT/APT** (SP 800-90B §4.4): Repetition Count Test e Adaptive
 Proportion Test applicati al campione incollato. Intercettano run patologici e drift
 locale che gli stimatori globali medierebbero via. Una sorgente che fallisce viene esclusa

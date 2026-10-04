@@ -1,6 +1,6 @@
 # Entropy Extraction Pipeline — Peres + Toeplitz
 
-> ⚠ **v2.0.0-beta5 — BETA pubblicata su GitHub.** Contiene funzionalità nuove
+> ⚠ **v2.0.0-beta6 — BETA pubblicata su GitHub.** Contiene funzionalità nuove
 > non ancora sottoposte ad audit indipendente da terzi (sono state però verificate con una
 > suite di test rigorosa e reale — vedi `CHANGELOG.md`). Vedi anche `SECURITY-NOTES.md` per
 > i principi di design. Non usare per nulla che conti davvero finché non è stata verificata
@@ -39,7 +39,7 @@ contano davvero.
 
 - [Perché esiste](#perché-esiste)
 - [Funzionalità](#funzionalità)
-- [Novità della v2.0.0-beta5](#novità-della-v200-beta5)
+- [Novità della v2.0.0-beta6](#novità-della-v200-beta6)
 - [Novità della serie v2.0.0 fino alla beta3](#novità-della-serie-v200-fino-alla-beta3)
 - [Come si usa](#come-si-usa)
 - [Struttura del repository](#struttura-del-repository)
@@ -74,9 +74,12 @@ CSPRNG reale, come reagisce il gate di esclusione H_min<0.3.
 Interleave (per sorgenti indipendenti — bloccate automaticamente se rilevata
 correlazione). Vedi `SECURITY-NOTES.md`.
 - **Stima di min-entropia in stile SP 800-90B**: Most Common Value (MCV) e Markov
-(ordine-1) con limite di confidenza superiore di Clopper-Pearson al 99%, più t-Tuple e
-Longest Repeated Substring (LRS) per rilevare strutture periodiche di ordine superiore.
-La min-entropia finale è il minimo fra tutti gli stimatori applicabili.
+(ordine-1) con limite di confidenza superiore di Clopper-Pearson al 99%, t-Tuple, Longest
+Repeated Substring (LRS), Collisione e Compressione (questi ultimi tre secondo la
+descrizione della norma e **validati contro l'output di `ea_non_iid`**, il programma
+ufficiale del NIST: vedi `verifica-stimatori/`). La Compressione parte da 6012 bit. Sono 6
+dei 10 stimatori del NIST: **mancano i quattro predittori** (MultiMCW, Lag, MultiMMC,
+LZ78Y). La min-entropia finale è il minimo fra tutti gli stimatori applicabili.
 - **Health test retrospettivi**: Repetition Count Test (RCT) e Adaptive Proportion Test
 (APT), per intercettare run patologici o drift locale in una sorgente.
 - **Controllo di correlazione multi-lag** (±8 posizioni) fra sorgenti, non solo bit
@@ -105,11 +108,20 @@ lunghezza di output variabile — implementazione JS pura di Keccak-f[1600], per
 `crypto.subtle` del browser non supporta nativamente SHAKE256.
 - **Suite di autotest all'avvio**: conservazione di massa, coerenza Toeplitz contro
 un'implementazione indipendente, vettori di test ufficiali SHA-256/SHAKE256,
-auto-consistenza statistica, tetto di emissione. Se qualcosa fallisse qui, è una
+auto-consistenza statistica, tetto di emissione, stimatori LRS/Collisione/Compressione
+contro i valori ufficiali di `ea_non_iid`. Se qualcosa fallisse qui, è una
 regressione nel codice.
 
-## Novità della v2.0.0-beta5
+## Novità della v2.0.0-beta6
 
+- **v2.0.0-beta6 (02/10/2026):** corretto lo stimatore LRS, che su bit casuali ideali dava
+  circa 0,43 contro circa 0,98 dello stimatore ufficiale e comandava sempre il minimo;
+  aggiunti gli stimatori di Collisione e Compressione. I tre sono validati contro
+  l'output di `ea_non_iid` su sei flussi (603 bit casuali; cucina e AM a 100.000 bit; AM,
+  cucina e un secondo file radio a 1.000.000 bit). Su bit casuali ideali di 603 bit la
+  sorgente non viene più esclusa a vuoto (0 su 1000 prove, contro 42 su 1000 della beta5).
+  Quattro autotest nuovi. Dettaglio, limiti e numeri in `CHANGELOG.md` e
+  `AUDIT-NOTES.md` (punto 16).
 - **v2.0.0-beta4 (26/09/2026):** corretto lo stimatore LRS (`W = u` al posto di `W = u+1`),
   difetto segnalato da un audit indipendente. Dettaglio in `CHANGELOG.md`.
 - **v2.0.0-beta5 (30/09/2026):** nessuna modifica al codice JavaScript. Allineati alla
@@ -142,12 +154,13 @@ Istruzioni dettagliate passo-passo: [ISTRUZIONI.md](ISTRUZIONI.md).
 
 ```
 .
-├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta5 (unico file necessario per l'uso)
+├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta6 (unico file necessario per l'uso)
 ├── ISTRUZIONI.md                # Guida all'uso passo-passo
 ├── CHANGELOG.md                 # Cronologia dettagliata di tutte le build e i bug corretti
 ├── AUDIT-NOTES.md               # Dettaglio completo delle note d'audit (spostato fuori dall'HTML)
 ├── SECURITY-NOTES.md            # Principi di design trasversali del progetto
 ├── CONTRIBUTING.md              # Linee guida per contribuire
+├── verifica-stimatori/          # Controlli degli stimatori contro l'output ufficiale di ea_non_iid (Python e Node)
 ├── LICENSE                      # Licenza MIT
 └── README.md                    # Questo file
 ```
@@ -156,7 +169,7 @@ Istruzioni dettagliate passo-passo: [ISTRUZIONI.md](ISTRUZIONI.md).
 
 | Passaggio          | Tecnica                                                                             | Riferimento                            |
 | ------------------ | ----------------------------------------------------------------------------------- | -------------------------------------- |
-| Stima entropia     | MCV, Markov (ordine-1), t-Tuple, LRS — con limite di confidenza Clopper-Pearson 99% | NIST SP 800-90B                        |
+| Stima entropia     | MCV, Markov (ordine-1), t-Tuple (Clopper-Pearson 99%); LRS, Collisione, Compressione (come la norma) | NIST SP 800-90B (6 stimatori su 10)    |
 | Health test        | Repetition Count Test, Adaptive Proportion Test                                     | NIST SP 800-90B §4.4                   |
 | Estrazione bias    | Peres Extractor (costruzione ricorsiva completa)                                    | Peres, 1992                            |
 | Hashing universale | Toeplitz matrix hashing su GF(2)                                                    | Toeplitz-hashing / universal hashing   |
@@ -181,6 +194,12 @@ regressioni tramite la suite di autotest.
 controllo dell'utente.
 - La stima di min-entropia dipende da un campione statico incollato manualmente — non
 sostituisce un health test in tempo reale su hardware fisico.
+- Gli stimatori sono 6 dei 10 del NIST (mancano i quattro predittori). Nei sei flussi
+confrontati i predittori ufficiali davano tra 0,96 e 1,00, ma su sorgenti con struttura
+diversa potrebbero dare valori più bassi. Per un seme vero il numero di riferimento resta
+quello di `ea_non_iid` sui bit effettivamente raccolti. La Compressione, da 6012 bit in su,
+è molto pessimista fino a circa 20.000 bit (pochi blocchi di test dopo i 1000 di
+inizializzazione): vedi `CHANGELOG.md`, voce beta6.
 - I test statistici su un output di poche centinaia di bit hanno potenza limitata: un
 "PASS" è indicativo, non probante.
 - La batteria NIST SP 800-22 copre 7 delle 15 procedure ufficiali, in 8 test (Cumulative
@@ -201,7 +220,11 @@ stessa);
 - vettori di test ufficiali per SHA-256 e SHAKE256;
 - auto-consistenza della funzione beta incompleta (Clopper-Pearson);
 - coerenza fra i due metodi indipendenti di calcolo di erfc;
-- verifica del tetto di emissione ⌊input/2⌋.
+- verifica del tetto di emissione ⌊input/2⌋;
+- LRS e Collisione su un vettore di 603 bit, con i valori stampati da `ea_non_iid`;
+- Compressione su un flusso sintetico di 12000 bit, con il valore del riferimento Python
+  (a sua volta validato contro `ea_non_iid`);
+- sequenza costante e periodica: H_min deve risultare circa 0.
 
 Se uno di questi autotest fallisse, significherebbe una regressione nel codice: non
 fidarsi dei risultati della pipeline finché non è risolto. La verifica matematica dei

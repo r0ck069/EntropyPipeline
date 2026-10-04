@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entropy Extraction Pipeline — Peres + Toeplitz (v2.0.0-beta5)</title>
+<title>Entropy Extraction Pipeline — Peres + Toeplitz (v2.0.0-beta6)</title>
 <style>
 :root{
   --bg:#f5f5f5; --card:#ffffff; --border:#ddd; --text:#222; --muted:#666;
@@ -62,7 +62,7 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
 <h1>Entropy Extraction Pipeline — Peres + Toeplitz</h1>
 <p class="subtitle">
   Standalone, offline, zero dipendenze esterne. Pensato per Firefox su Ubuntu MATE Live.<br>
-  Build <b>2.0.0-beta5</b> (2026-09-30) — <b>BETA NON AUDITATA</b>.
+  Build <b>2.0.0-beta6</b> (2026-10-02) — <b>BETA NON AUDITATA</b>.
   Changelog completo: <code>CHANGELOG.md</code>. Note d'audit ereditate: <code>AUDIT-NOTES.md</code>.
   Principi di sicurezza del progetto: <code>SECURITY-NOTES.md</code>.
 </p>
@@ -456,9 +456,9 @@ function markovHmin(bits){
   if(pUpperMax<=0) return 0;
   return -Math.log2(Math.min(1,pUpperMax));
 }
-// Limiti TTUPLE_MAX_T / LRS_MAX_SEARCH_LEN: guardia di scalabilità contro sequenze
-// fortemente periodiche (vedi AUDIT-NOTES.md, punto 14). Verificato non alterare il
-// comportamento su sorgenti realmente casuali.
+// Limite TTUPLE_MAX_T: guardia di scalabilità contro sequenze fortemente periodiche
+// (vedi AUDIT-NOTES.md, punto 14). Verificato non alterare il comportamento su sorgenti
+// realmente casuali. Per l'LRS la guardia è LRS_W_CAP (v. sotto, beta6).
 const TTUPLE_MAX_T = 64;
 function tTupleHmin(bits){
   const n=bits.length;
@@ -483,38 +483,133 @@ function tTupleHmin(bits){
   if(results.length===0) return null;
   return -Math.log2(Math.min(1,Math.max(...results)));
 }
-function longestRepeatedSubstringLen(bits){
-  const n=bits.length;
-  function hasRepeatOfLen(L){
-    if(L<=0) return true;
-    const seen=new Set();
-    for(let i=0;i<=n-L;i++){ const key=bits.slice(i,i+L).join(''); if(seen.has(key)) return true; seen.add(key); }
-    return false;
+/* [beta6] LRS, Collisione e Compressione secondo SP 800-90B (dati binari, 1 bit per campione).
+   Scritti sulla descrizione della norma e VALIDATI contro l'output ufficiale di ea_non_iid
+   (41 confronti su 6 flussi: 603 bit casuali; cucina e AM a 100.000 bit; AM, 095010 e cucina a
+   1.000.000 bit; vedi CHANGELOG.md, voce v2.0.0-beta6, e la cartella verifica-stimatori/).
+   Il software NIST SP800-90B_EntropyAssessment e' distribuito dal NIST con un proprio avviso di
+   licenza: qui il codice e' una riscrittura indipendente dalla norma; si cita il NIST come fonte. */
+const Z99_90B = 2.5758293035489;   // coefficiente della norma per il 99%
+const LRS_W_CAP = 52;              // oltre questa lunghezza la chiave numerica non e' piu' esatta (2^53)
+function tupleStats(s, W){
+  // massimo numero di occorrenze di una W-tupla e somma di C(c,2) sulle tuple ripetute
+  const m = s.length - W + 1;
+  let maxC = 0, coll = 0;
+  if(W <= 20){
+    const cnt = new Int32Array(1 << W), mask = (1 << W) - 1;
+    let key = 0;
+    for(let i = 0; i < W; i++) key = (key << 1) | s[i];
+    cnt[key]++;
+    for(let i = 1; i < m; i++){ key = ((key << 1) | s[i + W - 1]) & mask; cnt[key]++; }
+    for(let k = 0; k < cnt.length; k++){ const c = cnt[k]; if(c > maxC) maxC = c; if(c > 1) coll += c * (c - 1) / 2; }
+  } else {
+    const cnt = new Map(), top = Math.pow(2, W - 1);
+    let key = 0;
+    for(let i = 0; i < W; i++) key = key * 2 + s[i];
+    cnt.set(key, 1);
+    for(let i = 1; i < m; i++){ key = (key - s[i - 1] * top) * 2 + s[i + W - 1]; cnt.set(key, (cnt.get(key) || 0) + 1); }
+    for(const c of cnt.values()){ if(c > maxC) maxC = c; if(c > 1) coll += c * (c - 1) / 2; }
   }
-  const LRS_MAX_SEARCH_LEN = 256;
-  let lo=0, hi=Math.min(Math.max(0,n-1), LRS_MAX_SEARCH_LEN);
-  while(lo<hi){ const mid=Math.ceil((lo+hi+1)/2); if(hasRepeatOfLen(mid)) lo=mid; else hi=mid-1; }
-  return lo;
+  return { maxC, coll };
 }
 function lrsHmin(bits){
-  const n=bits.length;
-  if(n<40) return null;
-  const u=longestRepeatedSubstringLen(bits);
-  const W=u; // FIX: NIST calcola la probabilità di collisione sulla lunghezza u stessa, non su u+1 (bug audit indipendente 26/09/2026)
-  if(W<1||W>n) return null;
-  const counts={};
-  for(let i=0;i<=n-W;i++){ const key=bits.slice(i,i+W).join(''); counts[key]=(counts[key]||0)+1; }
-  let maxC=0; for(const k in counts) if(counts[k]>maxC) maxC=counts[k];
-  const total=n-W+1;
-  if(total<=0) return null;
-  const pUpper=clopperPearsonUpper(maxC,total,0.01);
-  return -Math.log2(Math.min(1,Math.pow(pUpper,1/W)));
+  // SP 800-90B 6.3.7: u = prima lunghezza per cui la tupla piu' frequente compare meno di 35 volte;
+  // v = ultima lunghezza per cui qualche tupla compare almeno 2 volte; per ogni W in u..v la probabilita'
+  // di collisione somma C(c,2)/C(n-W+1,2), radice W-esima; si prende il massimo e SOLO DOPO si somma
+  // il margine di confidenza (2,576).  Sostituisce la versione beta5 (conteggio massimo + limite di
+  // Clopper-Pearson prima della radice, su W = v), che dava circa 0,43 su bit casuali.
+  lrsHmin.capped = false;
+  const n = bits.length;
+  if(n < 40) return null;
+  const s = Uint8Array.from(bits);
+  let u = 0, best = -1;
+  for(let W = 1; W <= n - 1; W++){
+    if(W > LRS_W_CAP){ lrsHmin.capped = true; return 0; }   // sequenza ripetitiva oltre il limite: valore prudente
+    const { maxC, coll } = tupleStats(s, W);
+    if(u === 0){ if(maxC < 35) u = W; else continue; }
+    else if(maxC < 2) break;
+    const tot = n - W + 1;
+    const P = Math.pow(coll / (tot * (tot - 1) / 2), 1 / W);
+    if(P > best) best = P;
+    if(maxC < 2) break;
+  }
+  if(u === 0 || best < 0) return null;
+  const pu = Math.min(1, best + Z99_90B * Math.sqrt(best * (1 - best) / (n - 1)));
+  return Math.min(1, -Math.log2(pu));
+}
+function collisionHmin(bits){
+  // SP 800-90B 6.3.2 (binario): tempo di collisione 2 se s[i]==s[i+1], altrimenti 3; sigma con divisore (v-1),
+  // limite inferiore della media = media - 2,576*sigma/sqrt(v); da E = 2 + 2pq si ricava p (o 0,5 se non c'e' soluzione)
+  const n = bits.length;
+  if(n < 40) return null;
+  const s = Uint8Array.from(bits);
+  let i = 0, n2 = 0, n3 = 0;
+  while(i < n - 1){
+    if(s[i] === s[i + 1]){ n2++; i += 2; }
+    else if(i + 2 < n){ n3++; i += 3; }
+    else break;
+  }
+  const v = n2 + n3;
+  if(v < 2) return null;
+  const mean = (2 * n2 + 3 * n3) / v;
+  const sigma = Math.sqrt((n2 * Math.pow(2 - mean, 2) + n3 * Math.pow(3 - mean, 2)) / (v - 1));
+  const lo = mean - Z99_90B * sigma / Math.sqrt(v);
+  const pq = (lo - 2) / 2;
+  let p;
+  if(pq >= 0.25) p = 0.5; else if(pq <= 0) p = 1; else p = (1 + Math.sqrt(1 - 4 * pq)) / 2;
+  return -Math.log2(p);
+}
+function compressionHmin(bits){
+  // SP 800-90B 6.3.4 (binario): blocchi da 6 bit, d = 1000 blocchi di inizializzazione, distanze dall'ultima
+  // occorrenza, media e sigma-hat = 0,5907*sqrt(sum(x^2)/(v-1) - media^2) (costante e formula come nel codice NIST),
+  // poi E_p da bisezione su p in [1/64, 1] con q = (1-p)/63.  Servono almeno 6012 bit.
+  const b = 6, d = 1000;
+  const nblk = Math.floor(bits.length / b);
+  if(nblk <= d + 1) return null;
+  const blk = new Uint8Array(nblk);
+  for(let i = 0; i < nblk; i++){ let v = 0; for(let j = 0; j < b; j++) v = v * 2 + (+bits[i * b + j]); blk[i] = v; }
+  const last = new Int32Array(64);
+  for(let i = 0; i < d; i++) last[blk[i]] = i + 1;
+  const N = nblk - d;
+  const LOG = new Float64Array(nblk + 1);
+  for(let t = 1; t <= nblk; t++) LOG[t] = Math.log2(t);
+  let sum = 0, sum2 = 0;
+  for(let i = d; i < nblk; i++){
+    const pos = i + 1, k = blk[i];
+    const A = last[k] ? pos - last[k] : pos;
+    last[k] = pos;
+    const x = LOG[A]; sum += x; sum2 += x * x;
+  }
+  const mean = sum / N;
+  const rad = sum2 / (N - 1) - mean * mean;
+  if(!(rad > 0)) return null;
+  const sigma = 0.5907 * Math.sqrt(rad);
+  const meanLo = mean - Z99_90B * sigma / Math.sqrt(N);
+  function G(z){
+    const r = 1 - z;
+    let w = 1, S = 0, acc = 0;
+    for(let t = 1; t <= nblk; t++){
+      if(t > d) acc += z * z * S + LOG[t] * z * w;
+      S += LOG[t] * w; w *= r;
+    }
+    return acc / N;
+  }
+  function E(p){ const q = (1 - p) / (Math.pow(2, b) - 1); return G(p) + (Math.pow(2, b) - 1) * G(q); }
+  let lo = 1 / Math.pow(2, b), hi = 1, p;
+  if(E(lo) < meanLo) p = lo;                       // nessuna soluzione: distribuzione uniforme
+  else {
+    for(let it = 0; it < 80; it++){ const mid = (lo + hi) / 2; if(E(mid) > meanLo) lo = mid; else hi = mid; }
+    p = (lo + hi) / 2;
+  }
+  return -Math.log2(p) / b;
 }
 function combinedHmin(bits){
   const vals = [mcvHmin(bits), markovHmin(bits)];
   const tt = tTupleHmin(bits); if(tt!==null) vals.push(tt);
-  const lr = lrsHmin(bits); if(lr!==null) vals.push(lr);
-  return { hmin: Math.min(...vals), detail: { mcv:vals[0], markov:vals[1], tTuple:tt, lrs:lr } };
+  const lr = lrsHmin(bits); const lrCapped = !!lrsHmin.capped; if(lr!==null) vals.push(lr);
+  const co = collisionHmin(bits); if(co!==null) vals.push(co);
+  const cm = compressionHmin(bits); if(cm!==null) vals.push(cm);
+  return { hmin: Math.min(...vals), detail: { mcv:vals[0], markov:vals[1], tTuple:tt, lrs:lr, lrsCapped:lrCapped, collision:co, compression:cm } };
 }
 
 /* ============================== HEALTH TEST RETROSPETTIVI (RCT / APT, SP 800-90B §4.4) ============================== */
@@ -1193,7 +1288,9 @@ function analyzeSource(idx){
   const excludedTxt = hMin<HMIN_EXCLUDE ? "\n⚠ ESCLUSA (H_min < 0.3)" : (state.healthFailed[idx] ? "\n⚠ ESCLUSA (health test RCT/APT fallito)" : "");
   const detailTxt = `MCV=${detail.mcv.toFixed(4)} Markov=${detail.markov.toFixed(4)}` +
     (detail.tTuple!==null ? ` t-Tuple=${detail.tTuple.toFixed(4)}` : ' t-Tuple=n/a') +
-    (detail.lrs!==null ? ` LRS=${detail.lrs.toFixed(4)}` : ' LRS=n/a');
+    (detail.lrs!==null ? ` LRS=${detail.lrs.toFixed(4)}${detail.lrsCapped?' (ripetizione oltre '+LRS_W_CAP+' bit: valore prudente)':''}` : ' LRS=n/a') +
+    (detail.collision!==null ? ` Collisione=${detail.collision.toFixed(4)}` : ' Collisione=n/a') +
+    (detail.compression!==null ? ` Compressione=${detail.compression.toFixed(4)}` : ' Compressione=n/a (servono ≥6012 bit)');
   const rctTxt = `RCT: run max=${rct.maxRun} (soglia ${rct.cutoff}) ${rct.failed?'⚠ FALLITO':'OK'}`;
   const aptTxt = apt ? `APT: conteggio max=${apt.maxCount}/${apt.windowsChecked} finestre (soglia ${apt.cutoff}) ${apt.failed?'⚠ FALLITO':'OK'}` : 'APT: n/a (servono ≥512 bit)';
   statusEl.className = (rct.failed || (apt&&apt.failed)) ? 'status fail' : `status ${level}`;
@@ -1525,6 +1622,19 @@ async function runSelfTests(){
 
   // [NUOVO] Autotest del tetto di emissione ⌊input/2⌋
   check('Tetto di emissione ⌊input/2⌋ — non superabile', Math.floor(999/2)===499 && Math.floor(1000/2)===500);
+
+  // [beta6] Stimatori SP 800-90B contro l'output ufficiale di ea_non_iid su un vettore di 603 bit casuali
+  // (SHA-256 del file di byte 0/1: 7edc140e778fffa94c10ac95e4be19c47986fdfe16e837afed8acbc5d29f9c5a)
+  const v603 = Array.from("010011010000000111100110001000110000000001101111100101100001111101010000000111010100110010111001100110010111111101110010010100011101001000100001111001100011001101100101111110111011101101001001110010100111011111111101010010111000100111001011001001101000011111111010000101111111111111100101011011111101001010011101100010011000001101000010011011110101001010101010110110010101100111111101001010000110100010010110001001010100010001000111110101010011011101010101101100011111100000001000000100100100101111011000010100101110100010100010101100101010001110101010000010100011000111101011100111000101101111100111101", c=>+c);
+  check('LRS (SP 800-90B 6.3.7) — vettore di 603 bit: 0,851735 come ea_non_iid', Math.abs(lrsHmin(v603)-0.851735) < 5e-7);
+  check('Collisione (SP 800-90B 6.3.2) — vettore di 603 bit: 0,544821 come ea_non_iid', Math.abs(collisionHmin(v603)-0.544821) < 5e-7);
+  // Compressione (6.3.4): flusso sintetico deterministico (xorshift32, seme 123456789, 12000 bit, bit 7); il valore atteso viene
+  // dal riferimento Python validato su 6 flussi ufficiali (verifica-stimatori/est90b_ref.py)
+  let xs = 123456789 >>> 0; const xsBits = [];
+  for(let i=0;i<12000;i++){ xs = (xs ^ (xs<<13)) >>> 0; xs = (xs ^ (xs>>>17)) >>> 0; xs = (xs ^ (xs<<5)) >>> 0; xsBits.push((xs>>>7)&1); }
+  const cmpSyn = compressionHmin(xsBits);
+  check('Compressione (SP 800-90B 6.3.4) — flusso sintetico di 12000 bit: 0,646144 come il riferimento Python', cmpSyn!==null && Math.abs(cmpSyn-0.6461441440514917) < 1e-9);
+  check('Stima di min-entropia — sequenza costante e periodica danno H_min≈0', combinedHmin(new Array(2000).fill(0)).hmin < 0.01 && combinedHmin(Array.from({length:2000},(_,i)=>i%2)).hmin < 0.01);
 
   const allPass = results.every(r=>r.pass);
   const el = document.getElementById('selfTestArea');

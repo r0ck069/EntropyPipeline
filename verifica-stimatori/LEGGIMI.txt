@@ -1,0 +1,41 @@
+Verifica degli stimatori di min-entropia della pagina (v2.0.0-beta6)
+====================================================================
+Questa cartella contiene i controlli che confrontano LRS, Collisione e Compressione (SP 800-90B, dati binari,
+1 bit per campione) con l'output ufficiale di ea_non_iid, il programma del NIST compilato sul Raspberry Pi
+(dal sorgente NIST, il 24/09/2026; il commit esatto non e' registrato).  Gli output ufficiali con cui si confronta
+sono quelli incollati dall'utente il 01/10/2026 dopo aver eseguito ea_non_iid sugli stessi flussi di bit.
+
+File:
+  est90b_ref.py        riferimento in Python (collisione, compressione, LRS); richiede numpy
+  validazione_90b.py   confronta il riferimento Python con i valori ufficiali:  python3 validazione_90b.py
+  estimatori_check.js  confronta il codice JavaScript della pagina con gli stessi valori:  node estimatori_check.js
+  estrai_lsb.py        estrae i primi N bit meno significativi di un WAV a 16 bit (un byte 0/1 per bit, formato di ea_non_iid)
+  flussi/r603.json     603 bit casuali (generati con secrets), SHA-256 del file di byte 0/1:
+                       7edc140e778fffa94c10ac95e4be19c47986fdfe16e837afed8acbc5d29f9c5a
+
+Flussi di riferimento non inclusi (derivano da registrazioni audio private): vanno ricreati con estrai_lsb.py
+e messi in flussi/ con questi nomi; senza di essi i controlli li saltano e lo dicono nel conteggio finale.
+  cic100000.bin                           primi 100.000 LSB di "cicoria e salsiccia 01.10.2026 18.58.30.wav"
+                                          SHA-256 3eca65fa6887fb35b36adc4d127c87657314d9c1e7bcdb1fc003968253f57ec7
+  AM_rec20260921_105450_100000.bin        primi 100.000 LSB di rec20260921_105450.wav
+                                          SHA-256 95ad2ca5361b5fc0691b4db5e47554d2e8df99501f29b97324bc38479bea8593
+  cic1000000.bin                          primi 1.000.000 LSB del file di cucina
+                                          SHA-256 c3ad9c98f171e5bbebb9d2484a6fd60b60c0788db61fd24e9d2d0a520a3adf6d
+  AM_rec20260921_105450_1000000.bin       primi 1.000.000 LSB del file AM
+                                          SHA-256 162c70aeb14432532804c2774b545977bc0afd0d796a30089cfcc6e1cde784a0
+  radioFMAM_20260920_095010_1000000.bin   primi 1.000.000 LSB di 20260920_095010.wav
+                                          SHA-256 c487aedf1ee68224407bbd5ea3d938cc03f80f4974ec55f5f094fbacb819d998
+Estrazione:  python3 estrai_lsb.py file.wav flusso.bin 100000      (o 1000000)
+
+Formule verificate sui dati (non quelle "a memoria"):
+  collisione   tempo di collisione 2 o 3; sigma con divisore (v-1); margine sigma/sqrt(v); p da p(1-p) = (media_inf - 2)/2, altrimenti 0,5
+  compressione blocchi da 6 bit, d = 1000; sigma-hat = 0,5907 * sqrt(somma(x^2)/(v-1) - media^2) (costante e formula come nel
+               codice NIST, ricavate dal confronto con l'output ufficiale e dalla discussione pubblica del codice NIST,
+               pull request 270 del repository usnistgov/SP800-90B_EntropyAssessment); E_p come da norma
+  LRS          u = prima lunghezza con tupla piu' frequente sotto 35 occorrenze; v = ultima con almeno 2; per W in u..v la
+               probabilita' di collisione (somma C(c,2) / C(n-W+1,2)) con radice W-esima; massimo; poi margine 2,576
+
+Limiti: solo dati binari; la compressione richiede almeno 6012 bit; non validati i quattro predittori, MCV, Markov e t-Tuple.
+Licenza: il software NIST SP800-90B_EntropyAssessment e' distribuito dal NIST con un proprio avviso (uso, copia e modifica
+ammessi, con indicazione delle modifiche e riconoscimento del NIST come fonte). Il codice qui e' una riscrittura indipendente
+dalla norma; si cita il NIST come fonte.
