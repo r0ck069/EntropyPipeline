@@ -214,17 +214,34 @@ Complexity, Maurer's Universal Statistical Test, Template Matching (×2), Random
 Ad ogni caricamento della pagina, un pannello dedicato esegue automaticamente:
 
 - conservazione di massa del Peres Extractor su input casuali;
-- coerenza del Toeplitz hashing contro una seconda implementazione scritta con un percorso
-di codice indipendente (diagonali esplicite, non la stessa formula confrontata con se
-stessa);
+- coerenza del Toeplitz hashing contro una seconda implementazione con un percorso di
+codice davvero indipendente (`toeplitzHashByShift()`: prima riga costruita e righe
+successive ricavate per spostamento, senza l'espressione di indice `seed[i-j+n-1]`), più
+la prova che quel confronto è *sensibile*, cioè che un solo bit alterato nel seme lo fa
+fallire;
 - vettori di test ufficiali per SHA-256 e SHAKE256;
 - auto-consistenza della funzione beta incompleta (Clopper-Pearson);
-- coerenza fra i due metodi indipendenti di calcolo di erfc;
+- `erfc` contro valori noti, con la tolleranza adatta a ciascuna formula: relativa per
+quella di Numerical Recipes (usata per i p-value), assoluta per l'approssimazione razionale
+di Abramowitz-Stegun, che nella coda ha errore relativo molto maggiore;
 - verifica del tetto di emissione ⌊input/2⌋;
 - LRS e Collisione su un vettore di 603 bit, con i valori stampati da `ea_non_iid`;
 - Compressione su un flusso sintetico di 12000 bit, con il valore del riferimento Python
   (a sua volta validato contro `ea_non_iid`);
-- sequenza costante e periodica: H_min deve risultare circa 0.
+- sequenza costante e periodica: H_min deve risultare circa 0;
+- p-value del Longest Run contro due valori della tavola del chi-quadro a 3 gradi di libertà;
+- equivalenza del conteggio t-Tuple numerico contro un'implementazione di riferimento a
+stringhe, su quattro flussi (casuale, alternato, periodo 7, costante) e 32 lunghezze di tupla;
+- espansione del seme Toeplitz contro un ricalcolo indipendente blocco per blocco;
+- doppio conteggio degli uni: i due algoritmi devono concordare **e** distinguere un flusso
+alterato di un bit;
+- validazione del seme manuale: rifiuto dei semi costanti e periodici, accettazione di un
+seme da CSPRNG;
+- min-entropia nulla sullo XOR di due sorgenti identiche.
+
+**L'esito ora vincola l'uso**: se una sola di queste verifiche fallisce, le Fasi 1-5 vengono
+disabilitate e il pannello lo dichiara. Prima il pannello diventava rosso ma tutti i pulsanti
+restavano attivi.
 
 Se uno di questi autotest fallisse, significherebbe una regressione nel codice: non
 fidarsi dei risultati della pipeline finché non è risolto. La verifica matematica dei

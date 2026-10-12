@@ -77,6 +77,7 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
 <div class="card">
   <h2>Assistente opzionale — dati numerici (sensore/CSV) → bit grezzi <span class="badge">NUOVO</span></h2>
   <p style="font-size:.8rem;color:var(--muted);margin:-4px 0 10px;">Incolla letture numeriche (accelerometro, giroscopio, CSV di sensori — spazi/virgole/tab come separatori, una riga per campione o per gruppo di colonne). <b>Non genera entropia</b>: sceglie automaticamente scala, numero di LSB, modalità (valore diretto/differenza) e interleave fra colonne provando più combinazioni e tenendo quella con il punteggio migliore (bilanciamento 0/1 + Shannon + bassa autocorrelazione + lunghezza), poi estrae i bit meno significativi realmente presenti nei dati incollati. I bit prodotti restano comunque soggetti alla stessa stima rigorosa di min-entropia (Clopper-Pearson) di ogni sorgente, una volta inviati a Fase 1.</p>
+  <p style="font-size:.8rem;color:var(--muted);margin:-4px 0 10px;"><b>Limite da conoscere prima di usarlo.</b> La min-entropia misura <i>questi numeri</i>, non la loro origine fisica: nessuno stimatore statistico può distinguere il rumore di un sensore da un processo deterministico. Una sinusoide pura, entropia reale zero, attraversa tutti i controlli di questa pagina con H_min≈0,50 — e anche i dieci stimatori di <code>ea-non-iid-verifica</code>, predittori compresi, non la riconoscono. In più, la ricerca automatica sceglie fra decine di configurazioni quella che <i>sembra</i> più casuale, quindi la stima che ne esce è ottimistica per costruzione. L'imprevedibilità deve venire dal fenomeno fisico: di quella risponde chi raccoglie i dati, non lo strumento.</p>
   <textarea id="csvInput" placeholder="0.1234 -0.056 1.998&#10;0.1241 -0.051 2.001&#10;…"></textarea>
   <div class="row" style="margin-top:8px;">
     <button id="btnCsvAnalyze">Analizza e proponi bit</button>
@@ -112,7 +113,7 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
     </label>
     <button id="btnPhase2">Esegui FASE 2</button>
   </div>
-  <small class="note">Concatenazione: min-entropia ≈ somma delle sorgenti (più bit estraibili). XOR/Interleave: richiedono sorgenti indipendenti — bloccate automaticamente se il controllo di correlazione qui sotto rileva MI&gt;0.05 fra una coppia qualsiasi; l'entropia disponibile viene allora stimata in modo conservativo come il massimo (non la somma) fra le sorgenti attive.</small>
+  <small class="note">Concatenazione: min-entropia ≈ somma delle sorgenti, <b>solo se sono indipendenti</b> — se il controllo di correlazione rileva MI&gt;0.05 anche la concatenazione scende al massimo invece che alla somma. XOR/Interleave: richiedono sorgenti indipendenti e restano bloccate in presenza di correlazione; la loro entropia è sempre stimata come il massimo, mai la somma. <b>Da questa versione</b> gli stimatori girano anche <b>sul flusso combinato</b> e il budget per il bound LHL è il minimo fra le due contabilità: il controllo a coppie non vede le dipendenze congiunte (tre sorgenti a, b, c=a⊕b⊕d risultano scorrelate a due a due), quindi i bit che entrano davvero nel Toeplitz vanno misurati. Su sorgenti grandi questo passaggio richiede qualche secondo.</small>
   <div id="p2status" class="status neutral" style="margin-top:8px;">In attesa delle sorgenti…</div>
 </div>
 
@@ -142,6 +143,7 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
   <small class="note">Margine = 2×k per ε=2⁻ᵏ. Sotto lo standard (2⁻⁸⁰) è richiesta conferma esplicita una sola volta per sessione — vedi SECURITY-NOTES.md.</small>
   <label style="font-size:.78rem;color:var(--muted);margin-top:8px;">Seed Toeplitz — override manuale (opzionale, hex o binario, lunghezza esatta m+n-1). Vuoto = auto-generato (timestamp CPU + CSPRNG, espanso via SHA-256):</label>
   <textarea id="seedInput" placeholder="vuoto = seed auto-generato"></textarea>
+  <small class="note">Il Leftover Hash Lemma garantisce l'uscita vicina all'uniforme <b>in media su un seme estratto uniformemente</b>: un seme scelto a mano non gode di quella garanzia. Da questa versione un seme manuale costante, periodico o con min-entropia sotto 0,3 viene <b>rifiutato</b> (un seme di soli zeri produceva un'uscita tutta a zero, e dopo il doppio SHA-256 un valore dall'aria casuale ma pubblicamente noto). Usalo solo per riprodurre una sessione, mai per generare una chiave nuova.</small>
   <div id="p4status" class="status neutral" style="margin-top:8px;">In attesa della Fase 3…</div>
   <div class="row" style="margin-top:8px;">
     <div style="flex:1;min-width:220px;">
@@ -332,15 +334,24 @@ function shake256(messageBytes, outputBits){
   }
   return out;
 }
-function xorChecksum(bits){ return bits.reduce((a,b)=>a^b,0) & 1; }
-function block8Mod2Checksum(bits){
-  let acc=0;
-  for(let i=0;i<bits.length;i+=8){
-    let s=0;
-    for(let j=i;j<Math.min(i+8,bits.length);j++) s+=bits[j];
-    acc ^= (s&1);
-  }
-  return acc;
+/* [RISCRITTO] Verifica di coerenza del flusso combinato.
+   La coppia precedente (xorChecksum / block8Mod2Checksum) confrontava due scritture della
+   STESSA funzione: la parita' di tutti i bit, e lo XOR delle parita' dei blocchi da 8 bit,
+   che algebricamente e' di nuovo la parita' di tutti i bit. Coincidevano sempre, su
+   qualunque input, quindi il ramo "CRITICAL STOP" era irraggiungibile.
+   Qui si calcola invece la stessa quantita' - il numero di uni - per due vie realmente
+   diverse: somma diretta sull'array di bit, e popcount su tabella sui byte impacchettati
+   da bytesFromBits(). Se i bit vengono alterati fra i due passaggi, o se bytesFromBits()
+   sbagliasse l'impacchettamento, i due conteggi divergono. Il valore non viene mostrato:
+   il numero di uni del pool grezzo e' informazione sul materiale segreto, e per il
+   controllo basta sapere se le due vie concordano. */
+const POPCOUNT8 = (()=>{ const t=new Uint8Array(256); for(let i=0;i<256;i++){ let v=i,c=0; while(v){ c+=v&1; v>>=1; } t[i]=c; } return t; })();
+function onesCountDirect(bits){ let c=0; for(let i=0;i<bits.length;i++) c+=bits[i]; return c; }
+function onesCountViaBytes(bits){
+  // bytesFromBits() completa con zeri l'ultimo byte parziale: non altera il conteggio degli uni.
+  const bytes = bytesFromBits(bits);
+  let c=0; for(const b of bytes) c += POPCOUNT8[b];
+  return c;
 }
 
 /* ============================== BETA INCOMPLETA (Clopper-Pearson) ============================== */
@@ -463,8 +474,17 @@ const TTUPLE_MAX_T = 64;
 function tTupleHmin(bits){
   const n=bits.length;
   if(n<40) return null;
+  const sArr = Uint8Array.from(bits);
   function modeCount(L){
     if(n-L+1<=0) return {count:0,total:0};
+    // [FIX prestazioni] Conteggio con chiavi numeriche a finestra scorrevole, lo stesso
+    // schema di tupleStats() già validato contro ea_non_iid in beta6, invece di
+    // bits.slice(i,i+L).join(''): risultato identico (verificato nell'autotest), senza
+    // allocare una stringa per ogni posizione del campione. Era il collo di bottiglia di
+    // combinedHmin: 13,4 s su 1.000.000 di bit, quasi tutti spesi qui.
+    // Oltre LRS_W_CAP=52 bit la chiave numerica non è più esatta (limite 2^53), quindi
+    // per L più grandi si resta sul percorso a stringa.
+    if(L<=LRS_W_CAP) return {count: tupleStats(sArr,L).maxC, total: n-L+1};
     const counts={};
     for(let i=0;i<=n-L;i++){ const key=bits.slice(i,i+L).join(''); counts[key]=(counts[key]||0)+1; }
     let maxC=0; for(const k in counts) if(counts[k]>maxC) maxC=counts[k];
@@ -633,7 +653,10 @@ function repetitionCountTest(bits, hminPerBit){
   return { maxRun, cutoff:C, failed: maxRun>=C };
 }
 function adaptiveProportionTest(bits, hminPerBit, W){
-  W = W||512;
+  // [FIX] SP 800-90B §4.4.2: la finestra dell'Adaptive Proportion Test è 1024 per le
+  // sorgenti BINARIE (512 vale per alfabeti più grandi). Qui i campioni sono sempre
+  // binari, 1 bit per campione, quindi la finestra corretta è 1024.
+  W = W||1024;
   if(bits.length<W) return null;
   const alpha=Math.pow(2,-20);
   const H=Math.max(hminPerBit,1e-6);
@@ -737,7 +760,13 @@ function longestRunOnes(bits){
   }
   let chi2=0;
   for(let i=0;i<4;i++){ const exp=N*piArr[i]; if(exp>0) chi2 += Math.pow(v[i]-exp,2)/exp; }
-  const p = Math.max(0,Math.min(1, Math.exp(-chi2/2)));
+  // [FIX] Gradi di libertà del chi-quadro. Le 4 categorie di questo test hanno
+  // probabilità note e nessun parametro stimato: K=3, quindi il p-value della specifica
+  // (SP 800-22 §2.4) è igamc(K/2, chi2/2) = igamc(1.5, chi2/2). exp(-chi2/2) è
+  // igamc(1, chi2/2), cioè 2 gradi di libertà: sistematicamente troppo severo.
+  // Misurato su 3000 sequenze CSPRNG da 1024 bit: 2,50% di falsi FALLITI prima del fix,
+  // ~1% dopo (il tasso nominale per la soglia 0,01). igamc è già nel file.
+  const p = Math.max(0,Math.min(1, igamc(1.5, chi2/2)));
   return [p,p];
 }
 // [SOSTITUITO — v2.0.0-beta3] Serial Test completo, conforme alla specifica NIST
@@ -903,24 +932,35 @@ async function deriveSeedFromCpuTimestamp(neededBits){
   const material = new Uint8Array(tsBytes.length + rnd.length);
   material.set(tsBytes,0);
   material.set(rnd, tsBytes.length);
+  return { bits: await sha256CounterExpand(material, neededBits), tsString,
+           materialFingerprint: bytesToHex(material).slice(0,16)+'…' };
+}
+// Espansione deterministica di un materiale di seme in `neededBits` bit, con SHA-256 in
+// modalità contatore (contatore big-endian a 32 bit || materiale). Estratta da
+// deriveSeedFromCpuTimestamp() per poter essere verificata con un vettore noto
+// nell'autotest: prima era inline e non testabile.
+async function sha256CounterExpand(material, neededBits){
   const neededBytes = Math.ceil(neededBits/8);
-  let outBytes = new Uint8Array(0);
+  // [FIX prestazioni] Buffer preallocato invece di riallocare e ricopiare l'intero
+  // output a ogni blocco da 32 byte: la versione precedente era quadratica nella
+  // lunghezza del seme. Per un seme da ~125 KB (una sorgente da 1 Mbit) erano ~3900
+  // iterazioni e ~250 MB di copie inutili. Byte prodotti: identici (stesso SHA-256 in
+  // modalità contatore, stesso ordine) — verificato nell'autotest.
+  const outBytes = new Uint8Array(Math.ceil(neededBytes/32)*32);
+  let written = 0;
   let counter = 0;
-  while(outBytes.length < neededBytes){
+  while(written < neededBytes){
     const counterBytes = new Uint8Array(4);
     new DataView(counterBytes.buffer).setUint32(0, counter, false);
     const blockInput = new Uint8Array(counterBytes.length + material.length);
     blockInput.set(counterBytes,0);
     blockInput.set(material, counterBytes.length);
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', blockInput));
-    const merged = new Uint8Array(outBytes.length + digest.length);
-    merged.set(outBytes,0);
-    merged.set(digest, outBytes.length);
-    outBytes = merged;
+    outBytes.set(digest, written);
+    written += digest.length;
     counter++;
   }
-  const bits = bitsFromBytes(outBytes).slice(0, neededBits);
-  return { bits, tsString, materialFingerprint: bytesToHex(material).slice(0,16)+'…' };
+  return bitsFromBytes(outBytes).slice(0, neededBits);
 }
 function toeplitzHash(x, seed, m){
   const n = x.length;
@@ -934,31 +974,66 @@ function toeplitzHash(x, seed, m){
   }
   return y;
 }
-function verifyToeplitz(seed,m,n){
-  const offset = n-1;
-  for(let i=1;i<m;i++){
-    for(let j=1;j<n;j++){
-      const idxA = i - j + offset;
-      const idxB = (i-1) - (j-1) + offset;
-      if(seed[idxA] !== seed[idxB]) return false;
-    }
-  }
-  return true;
-}
-// Seconda implementazione, indipendente (percorso di codice diverso: costruisce
-// esplicitamente la riga della matrice invece di indicizzare direttamente il
-// vettore seed) — usata SOLO nell'autotest come cross-check strutturale.
-function toeplitzReferenceCheck(x, seed, m){
+/* [RIMOSSO] verifyToeplitz(). Confrontava seed[i-j+offset] con seed[(i-1)-(j-1)+offset]:
+   i due indici sono lo stesso numero per costruzione, quindi restituiva sempre true, anche
+   su un seme di soli zeri. Il difetto non era nell'implementazione ma nell'idea: un vettore
+   di m+n-1 bit indicizzato come seed[i-j+n-1] DEFINISCE una matrice di Toeplitz, quindi
+   nessun controllo di "struttura Toeplitz" su quel vettore puo' fallire. Cio' che puo'
+   davvero sbagliare e' il PRODOTTO, e quello ora viene verificato per due vie in Fase 4.
+   La qualita' del seme e' un'altra cosa ancora: vedi validateSeedBits(). */
+
+/* [RISCRITTO] Secondo calcolo del prodotto, questa volta davvero indipendente: non usa
+   l'espressione di indice seed[i-j+n-1]. Costruisce la prima riga e ricava ogni riga
+   successiva per spostamento a destra di una posizione, inserendo in testa il bit nuovo
+   del seme. Se l'indicizzazione diretta di toeplitzHash() fosse sbagliata, o i dati
+   venissero corrotti fra i due calcoli, i risultati divergerebbero. Usata nell'autotest e,
+   da questa versione, anche a runtime in Fase 4 sull'output vero. */
+function toeplitzHashByShift(x, seed, m){
   const n = x.length;
-  const y = new Array(m).fill(0);
+  if(seed.length !== m+n-1) throw new Error("Seed length mismatch");
+  const row = new Array(n);
+  for(let j=0;j<n;j++) row[j] = seed[n-1-j];        // riga 0: seed[n-1], seed[n-2], …, seed[0]
+  const y = new Array(m);
   for(let i=0;i<m;i++){
-    const row = new Array(n);
-    for(let j=0;j<n;j++) row[j] = seed[i-j+(n-1)];
+    if(i>0){
+      for(let j=n-1;j>0;j--) row[j] = row[j-1];      // spostamento a destra
+      row[0] = seed[n-1+i];                          // bit nuovo in testa
+    }
     let acc=0;
     for(let j=0;j<n;j++) acc ^= (row[j] & x[j]);
     y[i]=acc;
   }
   return y;
+}
+function sameBitArray(a,b){
+  if(a.length !== b.length) return false;
+  for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false;
+  return true;
+}
+
+/* [NUOVO] Validazione del seme Toeplitz fornito a mano (Fase 4).
+   Il Leftover Hash Lemma garantisce l'uscita vicina all'uniforme IN MEDIA su un seme
+   estratto uniformemente: un seme scelto dall'utente non gode di quella garanzia, e un
+   seme degenere la distrugge del tutto. Con un seme di soli zeri ogni riga della matrice
+   e' nulla e l'uscita e' m bit a zero; con un seme di soli uni ogni riga e' identica e
+   l'uscita e' la parita' dell'ingresso ripetuta m volte. In entrambi i casi il doppio
+   SHA-256 successivo produce un valore dall'aria perfettamente casuale e pubblicamente
+   noto. Prima di questa versione nulla lo intercettava: la lunghezza era l'unico requisito. */
+function validateSeedBits(bits){
+  const n = bits.length;
+  if(n === 0) return {ok:false, reason:'seme vuoto'};
+  const ones = onesCountDirect(bits);
+  if(ones === 0) return {ok:false, reason:"seme costante (tutti zeri): la matrice sarebbe nulla e l'uscita sarebbe tutta a zero"};
+  if(ones === n) return {ok:false, reason:"seme costante (tutti uni): ogni riga sarebbe identica e l'uscita sarebbe la parita' dell'ingresso ripetuta"};
+  for(let p=1; p<=32 && p<n; p++){
+    let periodic = true;
+    for(let i=p;i<n;i++) if(bits[i] !== bits[i-p]){ periodic=false; break; }
+    if(periodic) return {ok:false, reason:`seme periodico con periodo ${p}: le righe della matrice si ripetono, non c'e' estrazione`};
+  }
+  const est = combinedHmin(bits);
+  if(est.hmin < HMIN_EXCLUDE) return {ok:false, reason:`min-entropia del seme troppo bassa (H_min=${est.hmin.toFixed(4)} < ${HMIN_EXCLUDE}): un seme non uniforme invalida il bound LHL`};
+  return {ok:true, hmin:est.hmin,
+          warn: est.hmin < 0.8 ? `H_min del seme = ${est.hmin.toFixed(4)}: il bound LHL vale in media su un seme UNIFORME, con un seme fornito a mano la garanzia e' solo indicativa` : null};
 }
 
 /* ============================== [NUOVO] COMBINAZIONE MULTI-SORGENTE ==============================
@@ -1012,7 +1087,26 @@ async function computeCoreIntegrityHash(){
 
 /* ============================== APP STATE ============================== */
 const HMIN_EXCLUDE = 0.3;
+const NIST_MIN_CAMPIONI = 1000000;   // SP 800-90B: campioni richiesti per una stima non-IID
 let reducedMarginConfirmed = false;
+
+/* [NUOVO] Esito dell'autotest all'avvio. Prima era solo decorativo: il pannello diventava
+   rosso ma ogni pulsante restava attivo, mentre il README dichiara i vettori NIST
+   "verificati prima dell'uso". Ora nessuna fase parte se una verifica e' fallita. */
+let selfTestsOk = null;   // null = non ancora eseguito, true/false = esito
+function requireSelfTests(statusEl){
+  if(selfTestsOk === true) return true;
+  if(statusEl){
+    statusEl.className = 'status fail';
+    statusEl.textContent = (selfTestsOk === null)
+      ? "Autotest all'avvio non ancora completato: attendere qualche istante e riprovare."
+      : "BLOCCATO: l'autotest all'avvio ha segnalato almeno una verifica fallita. Non generare chiavi con questa pagina finche' il pannello Autotest non e' tutto verde.";
+  }
+  return false;
+}
+// Cede il controllo al browser per far dipingere un messaggio prima di un calcolo lungo
+// e sincrono. Palliativo, non un sostituto di un Web Worker.
+function yieldToUI(){ return new Promise(r=>setTimeout(r,0)); }
 
 const state = {
   sources: [null,null,null,null],
@@ -1035,6 +1129,33 @@ function log(msg){
   const box = document.getElementById('logBox');
   box.textContent += line + "\n";
   box.scrollTop = box.scrollHeight;
+}
+/* [NUOVO] Invalida tutto cio' che sta a valle quando una sorgente cambia.
+   Prima, modificare o svuotare una sorgente dopo la Fase 2 lasciava intatti concatBits,
+   peresOut e finalOut e lasciava attivi i pulsanti delle Fasi 3-5: lo schermo mostrava le
+   sorgenti nuove mentre l'output continuava a venire dai bit vecchi. In uno strumento che
+   punta sull'auditabilita' e' il tipo di incoerenza che rende il log inservibile. */
+function invalidateDownstream(motivo){
+  const avevaStato = state.concatBits.length>0 || state.peresOut.length>0 || state.finalOut.length>0;
+  state.concatBits = [];
+  state.peresOut = [];
+  state.finalOut = [];
+  state.sourceHminSum = 0;
+  state.sourceEntropyBits = 0;
+  state.peresRatio = 1;
+  for(const id of ['btnPhase3','btnPhase4','btnPhase5','btnFinal','btnShake']){
+    const el = document.getElementById(id); if(el) el.disabled = true;
+  }
+  const reset = [['p2status','In attesa delle sorgenti.'],['p3status','In attesa della Fase 2.'],
+                 ['p4status','In attesa della Fase 3.']];
+  for(const [id,txt] of reset){
+    const el = document.getElementById(id);
+    if(el){ el.className='status neutral'; el.textContent=txt; }
+  }
+  for(const id of ['outBin','outHex']){ const el=document.getElementById(id); if(el) el.textContent='\u2014'; }
+  for(const id of ['finalArea','shakeArea','p5table']){ const el=document.getElementById(id); if(el) el.innerHTML=''; }
+  const p5e = document.getElementById('p5extra'); if(p5e) p5e.textContent='';
+  if(avevaStato && motivo) log(`Stato a valle invalidato (${motivo}): Fasi 2-5 da rieseguire.`);
 }
 function levelForHmin(h){
   if(h<HMIN_EXCLUDE) return 'fail';
@@ -1087,15 +1208,21 @@ function csvExtractLsbBits(intVal, nLsb){
 function csvExtractWith(rows, cfg){
   let values=csvFlatten(rows, cfg.interleave);
   values=csvApplyMode(values, cfg.mode);
-  const allBits=[]; let used=0, skipped=0;
+  const allBits=[]; let used=0, skipped=0, unsafe=0;
   for(const x of values){
     if(cfg.skipZero&&x===0){ skipped++; continue; }
     const iv=csvToIntScaled(x, cfg.scale);
+    // [NUOVO] Oltre 2^53 un double non rappresenta piu' tutti gli interi: i bit meno
+    // significativi del valore scalato non vengono dal sensore, sono il residuo
+    // dell'arrotondamento in virgola mobile. Contarli come entropia significherebbe
+    // accreditare bit a un artefatto del formato numerico, quindi il valore si scarta e
+    // la configurazione viene penalizzata nella scelta automatica.
+    if(!Number.isSafeInteger(iv)){ unsafe++; continue; }
     if(cfg.skipZero&&iv===0){ skipped++; continue; }
     for(const b of csvExtractLsbBits(iv, cfg.nLsb)) allBits.push(b);
     used++;
   }
-  return {bits:allBits, used, skipped, cfg};
+  return {bits:allBits, used, skipped, unsafe, cfg};
 }
 function csvScoreBits(bits){
   const n=bits.length;
@@ -1144,7 +1271,8 @@ function csvAutoChoose(rows){
   for(const scale of scales) for(const mode of modes) for(const nLsb of lsbList) for(const interleave of inters){
     const cfg={scale, mode, nLsb, interleave, skipZero:true};
     const r=csvExtractWith(rows, cfg);
-    const sc=csvScoreBits(r.bits);
+    // Una configurazione che supera 2^53 viene scelta solo se non ce n'e' nessuna sana.
+    const sc=csvScoreBits(r.bits) - (r.unsafe>0 ? 1e6 : 0);
     tried++;
     if(sc>bestScore){ bestScore=sc; best=r; }
   }
@@ -1181,7 +1309,9 @@ document.getElementById('btnCsvAnalyze').addEventListener('click', ()=>{
   csvStatus.textContent =
     `Parametri scelti: ${result.cfg.nLsb} LSB/valore, scala ${result.cfg.scale}, modo ${result.cfg.mode}, interleave ${result.cfg.interleave?'sì':'no'} (${auto.candidates} configurazioni provate).\n${auto.why}\n` +
     `Valori usati: ${result.used}, saltati (zero): ${result.skipped}. Bit estratti: ${result.bits.length} (${(ones/result.bits.length*100).toFixed(1)}% di 1).\n` +
-    `Primi 64 bit: ${bitStr.slice(0,64)}${bitStr.length>64?'…':''}`;
+    `Primi 64 bit: ${bitStr.slice(0,64)}${bitStr.length>64?'…':''}` +
+    (result.unsafe>0 ? `\n⚠ ${result.unsafe} valori scartati perche' oltre 2^53 dopo la scala: i loro bit bassi sarebbero stati arrotondamenti del double, non dati del sensore.` : '') +
+    `\n\n⚠ La H_min misura QUESTI NUMERI, non la loro origine fisica. Se i dati vengono da un processo deterministico (una rampa, una sinusoide, un sensore fermo) nessuno stimatore se ne accorgera': una sinusoide pura supera tutti i controlli di questa pagina con H_min≈0,50. La scelta automatica massimizza un punteggio di apparenza di casualita' su decine di configurazioni, quindi la stima che segue e' ottimistica per costruzione. L'imprevedibilita' deve venire dal fenomeno fisico, e di quella rispondi tu.`;
   log(`Assistente CSV: estratti ${result.bits.length} bit (${result.cfg.nLsb} LSB, scala ${result.cfg.scale}, modo ${result.cfg.mode}, interleave ${result.cfg.interleave})`);
   document.getElementById('btnCsvSend').disabled = false;
 });
@@ -1232,6 +1362,7 @@ function generateBiasedDemo(idx){
   analyzeSource(idx);
 }
 function clearSource(idx){
+  invalidateDownstream(`sorgente ${idx+1} svuotata`);
   document.getElementById(`pasteInput-${idx}`).value='';
   state.sources[idx]=null;
   state.hmin[idx]=0;
@@ -1243,6 +1374,8 @@ function clearSource(idx){
 }
 function analyzeSource(idx){
   const statusEl = document.getElementById(`srcStatus-${idx}`);
+  if(!requireSelfTests(statusEl)) return;
+  invalidateDownstream(`sorgente ${idx+1} rianalizzata`);
   const raw = document.getElementById(`pasteInput-${idx}`).value.trim();
   if(!raw){
     state.sources[idx]=null; state.hmin[idx]=0; state.healthFailed[idx]=false;
@@ -1291,15 +1424,23 @@ function analyzeSource(idx){
     (detail.lrs!==null ? ` LRS=${detail.lrs.toFixed(4)}${detail.lrsCapped?' (ripetizione oltre '+LRS_W_CAP+' bit: valore prudente)':''}` : ' LRS=n/a') +
     (detail.collision!==null ? ` Collisione=${detail.collision.toFixed(4)}` : ' Collisione=n/a') +
     (detail.compression!==null ? ` Compressione=${detail.compression.toFixed(4)}` : ' Compressione=n/a (servono ≥6012 bit)');
+  // [NUOVO] Avviso sul numero di campioni. Il tool di verifica a monte di questa suite
+  // (ea-non-iid-verifica) rifiuta una sorgente con meno di 1.000.000 di campioni, come
+  // prescrive SP 800-90B; qui la soglia e' 256 bit. Non alzo la soglia, romperebbe l'uso
+  // didattico dichiarato, ma la stima non puo' essere presentata come se fosse solida.
+  const campioniTxt = bits.length < NIST_MIN_CAMPIONI
+    ? `\n\u26a0 Campioni: ${bits.length} (SP 800-90B ne richiede almeno ${NIST_MIN_CAMPIONI.toLocaleString('it-IT')}): H_min qui e' INDICATIVA. Su campioni corti gli stimatori sbagliano in entrambe le direzioni: su bit da CSPRNG danno 0,37 a 256 bit e 0,83 a un milione.`
+    : '';
   const rctTxt = `RCT: run max=${rct.maxRun} (soglia ${rct.cutoff}) ${rct.failed?'⚠ FALLITO':'OK'}`;
-  const aptTxt = apt ? `APT: conteggio max=${apt.maxCount}/${apt.windowsChecked} finestre (soglia ${apt.cutoff}) ${apt.failed?'⚠ FALLITO':'OK'}` : 'APT: n/a (servono ≥512 bit)';
+  const aptTxt = apt ? `APT: conteggio max=${apt.maxCount}/${apt.windowsChecked} finestre (soglia ${apt.cutoff}) ${apt.failed?'⚠ FALLITO':'OK'}` : 'APT: n/a (servono ≥1024 bit)';
   statusEl.className = (rct.failed || (apt&&apt.failed)) ? 'status fail' : `status ${level}`;
-  statusEl.textContent = `bit=${bits.length} H_min=${hMin.toFixed(4)}${excludedTxt}\n${detailTxt}\n${rctTxt}\n${aptTxt}`;
+  statusEl.textContent = `bit=${bits.length} H_min=${hMin.toFixed(4)}${excludedTxt}${campioniTxt}\n${detailTxt}\n${rctTxt}\n${aptTxt}`;
   log(`Sorgente ${idx+1} analizzata: ${bits.length} bit, H_min=${hMin.toFixed(4)}`);
 }
 
 /* ============================== FASE 2 (con combinazione multi-sorgente) ============================== */
-document.getElementById('btnPhase2').addEventListener('click', ()=>{
+document.getElementById('btnPhase2').addEventListener('click', async ()=>{
+  if(!requireSelfTests(document.getElementById('p2status'))) return;
   const active = [];
   let sumH = 0;
   let entropyBits = 0;
@@ -1336,27 +1477,93 @@ document.getElementById('btnPhase2').addEventListener('click', ()=>{
   }
   const concat = combineSourceArrays(active.map(a=>a.bits), combineMode);
 
-  const c1 = xorChecksum(concat);
-  const c2 = block8Mod2Checksum(concat);
-  if(c1 !== c2){
+  p2.className='status neutral';
+  p2.textContent = `Fase 2: ${concat.length} bit combinati, rivalidazione del flusso combinato in corso... ` +
+    (concat.length < 1000000 ? `(battery completa, 6 stimatori)` : `(battery ridotta, solo LRS: sopra il milione di bit la completa richiederebbe decine di secondi)`);
+  await yieldToUI();
+
+  const n1 = onesCountDirect(concat);
+  const n2 = onesCountViaBytes(concat);
+  if(n1 !== n2){
     p2.className='status fail';
-    p2.textContent='CRITICAL STOP: i due checksum indipendenti non coincidono.';
-    log('FASE 2 CRITICO: checksum mismatch');
+    p2.textContent='CRITICAL STOP: le due vie di conteggio degli uni non concordano sul flusso combinato.';
+    log('FASE 2 CRITICO: conteggio incoerente');
     return;
   }
 
-  // Propagazione dell'entropia assoluta al bound LHL (Fase 4): la Concatenazione
-  // preserva l'additività (Σ); XOR/Interleave sono trattati in modo conservativo
-  // con il MASSIMO fra le sorgenti attive (mai la somma) — vedi SECURITY-NOTES.md.
-  const entropyBitsForLHL = (combineMode === 'concat' || active.length===1)
-    ? entropyBits
-    : Math.max(...active.map(a => state.hmin[a.idx] * a.bits.length));
+  /* [NUOVO] Rivalidazione del flusso combinato.
+     Prima, il budget di entropia propagato al bound LHL veniva solo dalle stime per
+     sorgente della Fase 1, mentre i bit che entrano nel Toeplitz sono quelli combinati:
+     nessuno stimatore li aveva mai guardati. Il controllo di correlazione e' a coppie e a
+     lag +-8, e l'indipendenza a coppie non implica quella congiunta: con tre sorgenti
+     a, b, c = a xor b xor d (d debole) tutte le coppie risultano scorrelate, lo XOR vale d,
+     e il budget risultava 5,3 volte l'entropia realmente presente. Ora gli stimatori
+     girano anche sul flusso combinato e il budget e' il minimo fra le due contabilita'. */
+  /* [COMPROMESSO concordato nella #8] La rivalidazione completa costa: combinedHmin() su
+     4 Mbit impiega circa 47 s. Sotto la soglia si esegue la battery completa; sopra, il
+     solo LRS, che e' lo stimatore che intercetta ripetizioni e dipendenze fra sorgenti
+     (verificato: su una sorgente duplicata e su due sorgenti identiche in XOR l'LRS da' 0
+     con lrsCapped=true, mentre su un flusso sano da' 0,83 senza cap).
+     Il budget resta comunque il MINIMO fra la contabilita' per sorgente e quella sul
+     flusso combinato: una battery ridotta puo' solo far valere di meno il vincolo nuovo,
+     non alzare mai il budget sopra quello che la beta6 avrebbe dato da sola.
+     NOTA: la soglia vale SOLO qui, non per le stime per sorgente della Fase 1. Li' il
+     minimo e' quasi sempre dato dalla Compressione, non dall'LRS: misurato su quattro
+     flussi, usare il solo LRS alzerebbe H_min del 26-43% e quindi gonfierebbe il budget
+     (xorshift 0,7225 -> 0,9825; CSPRNG 0,7121 -> 0,9835). Sarebbe una regressione di
+     sicurezza, non un'ottimizzazione. */
+  const BATTERY_COMPLETA_MAX_BIT = 1000000;
+  const batteryCompleta = concat.length < BATTERY_COMPLETA_MAX_BIT;
+  let combinedHminVal, combinedCapped, batteryNota;
+  if(batteryCompleta){
+    const est = combinedHmin(concat);
+    combinedHminVal = est.hmin;
+    combinedCapped = est.detail.lrsCapped;
+    batteryNota = `completa, 6 stimatori (${concat.length} bit, sotto la soglia di ${BATTERY_COMPLETA_MAX_BIT})`;
+  } else {
+    const lr = lrsHmin(concat);
+    combinedCapped = !!lrsHmin.capped;
+    if(lr === null){
+      combinedHminVal = 1;
+      batteryNota = `ridotta, solo LRS (${concat.length} bit) \u2014 LRS non applicabile a questo flusso: nessun vincolo aggiuntivo dal combinato`;
+    } else {
+      combinedHminVal = lr;
+      batteryNota = `ridotta, solo LRS (${concat.length} bit, sopra la soglia di ${BATTERY_COMPLETA_MAX_BIT}): intercetta ripetizioni e dipendenze, non il bias locale`;
+    }
+  }
+  const entropyBitsCombined = combinedHminVal * concat.length;
+  if(combinedHminVal < HMIN_EXCLUDE){
+    p2.className='status fail';
+    p2.textContent = `Flusso combinato inutilizzabile: H_min misurata sui bit combinati = ${combinedHminVal.toFixed(4)} (< ${HMIN_EXCLUDE}), nonostante le singole sorgenti passino.\nBattery applicata: ${batteryNota}.\n` +
+      (combinedCapped
+        ? `Causa: nel flusso combinato esiste una sottostringa ripetuta piu' lunga di ${LRS_W_CAP} bit, che l'LRS segnala con un valore prudente di 0. Le cause tipiche: la stessa sorgente inserita due volte, una registrazione che contiene un ciclo, due file esportati dalla stessa acquisizione, oppure una sorgente cosi' sbilanciata da produrre lunghe sequenze costanti.`
+        : `E' il sintomo di una dipendenza fra le sorgenti che il controllo a coppie, essendo solo a due a due, non vede.`) +
+      `\nCambia modalita' di combinazione, togli la sorgente sospetta, oppure fornisci sorgenti davvero indipendenti.`;
+    log(`FASE 2 BLOCCATA: H_min del flusso combinato = ${combinedHminVal.toFixed(4)} (battery ${batteryCompleta?'completa':'ridotta, solo LRS'})`);
+    return;
+  }
+
+  /* Contabilita' dalle sorgenti. La concatenazione preserva l'additivita' SOLO se le
+     sorgenti sono indipendenti: se il controllo a coppie ha segnalato correlazione, anche
+     in concatenazione si scende al massimo invece che alla somma (prima la correlazione in
+     modalita' concat produceva solo un warning, e incollare due volte la stessa sorgente
+     raddoppiava il budget). XOR/Interleave restano sempre al massimo. */
+  const maxBudget = Math.max(...active.map(a => state.hmin[a.idx] * a.bits.length));
+  const additive = (combineMode === 'concat' || active.length === 1);
+  let budgetFromSources, budgetNote;
+  if(active.length === 1){ budgetFromSources = entropyBits; budgetNote = 'sorgente singola'; }
+  else if(additive && warnMI.length === 0){ budgetFromSources = entropyBits; budgetNote = 'somma (concatenazione di sorgenti scorrelate)'; }
+  else if(additive){ budgetFromSources = maxBudget; budgetNote = 'massimo invece della somma: correlazione rilevata fra le sorgenti concatenate'; }
+  else { budgetFromSources = maxBudget; budgetNote = 'massimo, mai la somma (XOR/Interleave)'; }
+
+  const entropyBitsForLHL = Math.min(budgetFromSources, entropyBitsCombined);
+  const vincolo = entropyBitsCombined < budgetFromSources ? 'flusso combinato' : 'stime per sorgente';
 
   state.concatBits = concat;
   state.sourceHminSum = sumH;
   state.sourceEntropyBits = entropyBitsForLHL;
   p2.className='status ok';
-  p2.textContent = `OK — ${concat.length} bit combinati (modalità: ${combineMode}) da ${active.length} sorgente${active.length>1?'i':''}.\nΣ H_min (tasso, informativo) = ${sumH.toFixed(4)}\nEntropia assoluta usata per il bound LHL = ${entropyBitsForLHL.toFixed(1)} bit\nChecksum XOR=${c1} block8=${c2} → match\n` +
+  p2.textContent = `OK — ${concat.length} bit combinati (modalità: ${combineMode}) da ${active.length} sorgent${active.length>1?'i':'e'}.\nΣ H_min (tasso, informativo) = ${sumH.toFixed(4)}\nH_min misurata SUL FLUSSO COMBINATO = ${combinedHminVal.toFixed(4)} → ${entropyBitsCombined.toFixed(1)} bit  [battery ${batteryNota}]\nContabilità dalle sorgenti (${budgetNote}) = ${budgetFromSources.toFixed(1)} bit\nEntropia assoluta usata per il bound LHL = ${entropyBitsForLHL.toFixed(1)} bit (vincolo: ${vincolo})\nConteggio degli uni per due vie indipendenti: concordi\n` +
     (active.length>1 ? (warnMI.length ? `⚠ WARN correlazione (multi-lag ±8): ${warnMI.join(', ')}` : 'Correlazione multi-lag (±8): nessun warning') : '(sorgente singola)') +
     (excludedForHealth.length ? `\n(${excludedForHealth.join(', ')} esclusa/e per health test RCT/APT fallito)` : '');
   log(`FASE 2 OK: ${concat.length} bit, modalità=${combineMode}, sorgenti=${active.length}`);
@@ -1366,6 +1573,7 @@ document.getElementById('btnPhase2').addEventListener('click', ()=>{
 /* ============================== FASE 3 ============================== */
 document.getElementById('btnPhase3').addEventListener('click', ()=>{
   const p3 = document.getElementById('p3status');
+  if(!requireSelfTests(p3)) return;
   if(state.concatBits.length===0){ p3.className='status fail'; p3.textContent='Eseguire prima la Fase 2.'; return; }
   const {out, discarded, depth, nIn} = peresExtractor(state.concatBits);
   if(out.length + discarded !== nIn){
@@ -1394,6 +1602,7 @@ document.getElementById('btnPhase3').addEventListener('click', ()=>{
 /* ============================== FASE 4 (con tetto di emissione ⌊input/2⌋) ============================== */
 document.getElementById('btnPhase4').addEventListener('click', async ()=>{
   const p4 = document.getElementById('p4status');
+  if(!requireSelfTests(p4)) return;
   if(state.peresOut.length===0){ p4.className='status fail'; p4.textContent='Eseguire prima la Fase 3.'; return; }
   let m = parseInt(document.getElementById('mInput').value,10) || 256;
 
@@ -1436,7 +1645,8 @@ document.getElementById('btnPhase4').addEventListener('click', async ()=>{
   const marginUsed = `ε=2⁻${epsK} (margine ${margin} bit)${epsK<80 ? ' — RIDOTTO rispetto allo standard, solo dimostrativo/test' : ' — standard crittografico'}`;
 
   p4.className='status neutral';
-  p4.textContent = 'Calcolo del seed Toeplitz in corso...';
+  p4.textContent = 'Calcolo del seed Toeplitz in corso… (con un seme manuale viene anche misurata la sua min-entropia)';
+  await yieldToUI();
 
   const n = state.peresOut.length;
   const seedLen = m + n - 1;
@@ -1451,22 +1661,36 @@ document.getElementById('btnPhase4').addEventListener('click', async ()=>{
       p4.textContent = `Seed manuale di lunghezza errata: servono ${seedLen} bit, forniti ${parsed.length}.`;
       return;
     }
+    // [NUOVO] Il seme manuale ora viene anche guardato, non solo misurato in lunghezza.
+    const chk = validateSeedBits(parsed);
+    if(!chk.ok){
+      p4.className='status fail';
+      p4.textContent = `Seed manuale rifiutato: ${chk.reason}.\n` +
+        `Il bound LHL garantisce l'uscita vicina all'uniforme in media su un seme UNIFORME: lascia il campo vuoto per il seme automatico (CSPRNG + SHA-256 in modalita' contatore), oppure fornisci un seme davvero casuale della lunghezza richiesta.`;
+      log(`FASE 4: seed manuale rifiutato (${chk.reason})`);
+      return;
+    }
     seedBits = parsed;
-    seedSource = 'manuale (fornito dall\'utente)';
+    seedSource = 'manuale (fornito dall\'utente)' + (chk.warn ? ` — ⚠ ${chk.warn}` : ` — H_min del seme = ${chk.hmin.toFixed(4)}`);
   } else {
     const derived = await deriveSeedFromCpuTimestamp(seedLen);
     seedBits = derived.bits;
     seedSource = `auto-generato — impronta: ${derived.materialFingerprint}`;
   }
 
-  if(!verifyToeplitz(seedBits, m, n)){
+  /* [SOSTITUITO] Qui c'era verifyToeplitz(), che non poteva fallire: un vettore
+     indicizzato come seed[i-j+n-1] definisce una matrice di Toeplitz, quindi verificarne
+     la struttura e' una tautologia. Cio' che puo' davvero sbagliare e' il prodotto, e
+     adesso viene calcolato due volte per vie indipendenti (indicizzazione diretta contro
+     costruzione per spostamento) e confrontato sull'output vero, non solo nell'autotest. */
+  const outputBits = toeplitzHash(state.peresOut, seedBits, m);
+  const outputByShift = toeplitzHashByShift(state.peresOut, seedBits, m);
+  if(!sameBitArray(outputBits, outputByShift)){
     p4.className='status fail';
-    p4.textContent = 'ERRORE CRITICO: controllo di sanità strutturale Toeplitz fallito.';
-    log('FASE 4 CRITICO: verifyToeplitz fallito');
+    p4.textContent = 'ERRORE CRITICO: le due implementazioni indipendenti del prodotto Toeplitz danno risultati diversi. Non usare questo output.';
+    log('FASE 4 CRITICO: i due prodotti Toeplitz divergono');
     return;
   }
-
-  const outputBits = toeplitzHash(state.peresOut, seedBits, m);
   state.finalOut = outputBits;
   state.m_out = m;
 
@@ -1527,9 +1751,19 @@ document.getElementById('btnFinal').addEventListener('click', async ()=>{
   const h1 = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
   const h2 = new Uint8Array(await crypto.subtle.digest('SHA-256', h1));
   const bits = bitsFromBytes(h2);
+  // [FIX] Principio 1 di SECURITY-NOTES.md, "mai inventare bit". Il doppio SHA-256
+  // restituisce sempre 256 bit di LUNGHEZZA, ma la forza di sicurezza non supera gli m
+  // bit emessi dalla Fase 4. Il tetto ⌊input/2⌋ segnala già la riduzione nel messaggio di
+  // Fase 4 (capNote), ma la casella dell'output finale dichiarava comunque 256 bit
+  // rispetto al valore chiesto dall'utente. L'etichetta "Binario (256 bit)" era fissa e
+  // suggeriva una chiave da 256 bit anche quando l'entropia disponibile era molto meno.
+  const strength = state.m_out;
   document.getElementById('finalArea').innerHTML =
-    `<div class="final-box"><span class="lbl">Binario (256 bit)</span>${bits.join('')}<br><br>
-     <span class="lbl">Esadecimale</span>${bytesToHex(h2)}</div>`;
+    `<div class="final-box"><span class="lbl">Binario (lunghezza 256 bit — forza di sicurezza al più ${strength} bit)</span>${bits.join('')}<br><br>
+     <span class="lbl">Esadecimale</span>${bytesToHex(h2)}</div>` +
+    (strength < 256
+      ? `<div class="status warn">⚠ L'uscita è lunga 256 bit ma porta al più ${strength} bit di entropia: la Fase 4 ha emesso ${strength} bit. Non dichiararla né usarla come una chiave da 256 bit.</div>`
+      : '');
   log('Output finale (doppio SHA-256) calcolato');
 });
 
@@ -1602,9 +1836,26 @@ async function runSelfTests(){
     const n = 5+Math.floor(Math.random()*20), m = 5+Math.floor(Math.random()*20);
     const x = Array.from({length:n}, ()=> Math.random()<0.5?0:1);
     const seed = Array.from({length:m+n-1}, ()=> Math.random()<0.5?0:1);
-    if(toeplitzHash(x, seed, m).join('') !== toeplitzReferenceCheck(x, seed, m).join('')){ toeOk=false; break; }
+    if(!sameBitArray(toeplitzHash(x, seed, m), toeplitzHashByShift(x, seed, m))){ toeOk=false; break; }
   }
-  check('Toeplitz — coerenza contro implementazione indipendente (10 prove)', toeOk);
+  check('Toeplitz — indicizzazione diretta contro costruzione per spostamento (10 prove)', toeOk);
+
+  // [NUOVO] Il confronto precedente metteva a fronte due scritture della stessa
+  // espressione di indice: non poteva fallire. Ora le due vie sono diverse, e questo test
+  // mostra che il confronto e' SENSIBILE: basta un bit del seme perche' divergano.
+  let toeSensibile = true;
+  for(let trial=0; trial<10; trial++){
+    const n = 5+Math.floor(Math.random()*20), m = 5+Math.floor(Math.random()*20);
+    // x di soli uni: cosi' ogni bit del seme entra in almeno una riga del prodotto e
+    // l'alterazione deve per forza propagarsi (con x casuale un bit del seme puo'
+    // moltiplicare solo zeri e non cambiare nulla: il confronto resterebbe uguale senza
+    // che questo significhi che non e' sensibile).
+    const x = new Array(n).fill(1);
+    const seed = Array.from({length:m+n-1}, ()=> crypto.getRandomValues(new Uint8Array(1))[0] & 1);
+    const guasto = seed.slice(); guasto[Math.floor(Math.random()*guasto.length)] ^= 1;
+    if(sameBitArray(toeplitzHash(x, seed, m), toeplitzHashByShift(x, guasto, m))) toeSensibile = false;
+  }
+  check('Toeplitz — il confronto rileva un seme alterato di un solo bit (10 prove)', toeSensibile);
 
   const shaAbc = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('abc')));
   check('SHA-256("abc") — vettore ufficiale', bytesToHex(shaAbc).toLowerCase()==='ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
@@ -1616,9 +1867,22 @@ async function runSelfTests(){
   const cpExpected = 1 - Math.pow(0.01, 1/10);
   check('Clopper-Pearson — forma chiusa Beta(1,n)', Math.abs(cpTest-cpExpected) < 1e-6);
 
-  let erfcOk = true;
-  for(const x of [0, 0.5, 1, 1.5, 2, 3]) if(Math.abs(erfcNumericalRecipes(x)-erfcRationalW(x))>0.01) erfcOk=false;
-  check('erfc — coerenza fra due metodi indipendenti', erfcOk);
+  /* [SOSTITUITO] Il test precedente confrontava i due metodi fra loro con tolleranza
+     ASSOLUTA 0,01. Ma erfc(3) vale 2,2e-5: nella coda, l'unico posto dove i p-value
+     contano, quel confronto passava anche se un'implementazione avesse restituito 0.
+     Ora ognuna viene confrontata con valori noti, con la tolleranza giusta per la sua
+     natura: errore RELATIVO per la formula di Numerical Recipes (quella usata per i
+     p-value), errore ASSOLUTO per l'approssimazione razionale di Abramowitz-Stegun, che
+     garantisce 1,5e-7 in valore assoluto ma nella coda ha errore relativo fino a 7e-4. */
+  const ERFC_NOTI = [[0,1],[0.5,0.479500122186953],[1,0.157299207050285],
+                     [1.5,0.033894853524689],[2,0.004677734981047],[3,0.0000220904969986]];
+  let erfcNR = true, erfcAS = true;
+  for(const [x,v] of ERFC_NOTI){
+    if(Math.abs(erfcNumericalRecipes(x)-v) > 1e-6*v) erfcNR = false;
+    if(Math.abs(erfcRationalW(x)-v) > 2e-7) erfcAS = false;
+  }
+  check('erfc (Numerical Recipes) — valori noti, errore relativo < 1e-6', erfcNR);
+  check('erfc (Abramowitz-Stegun) — valori noti, errore assoluto < 2e-7', erfcAS);
 
   // [NUOVO] Autotest del tetto di emissione ⌊input/2⌋
   check('Tetto di emissione ⌊input/2⌋ — non superabile', Math.floor(999/2)===499 && Math.floor(1000/2)===500);
@@ -1636,14 +1900,121 @@ async function runSelfTests(){
   check('Compressione (SP 800-90B 6.3.4) — flusso sintetico di 12000 bit: 0,646144 come il riferimento Python', cmpSyn!==null && Math.abs(cmpSyn-0.6461441440514917) < 1e-9);
   check('Stima di min-entropia — sequenza costante e periodica danno H_min≈0', combinedHmin(new Array(2000).fill(0)).hmin < 0.01 && combinedHmin(Array.from({length:2000},(_,i)=>i%2)).hmin < 0.01);
 
+  // [NUOVO] Longest Run of Ones — gradi di libertà del p-value. Il test ha 4 categorie
+  // con probabilità note e nessun parametro stimato: K=3. Verificato contro due valori
+  // della tavola del chi-quadro a 3 gradi di libertà, non contro la formula stessa.
+  check('Longest Run — p-value a 3 gradi di libertà (tavola χ²: 7,8147→0,05)',
+    Math.abs(igamc(1.5, 7.8147/2) - 0.05) < 1e-5);
+  check('Longest Run — p-value a 3 gradi di libertà (tavola χ²: 11,3449→0,01)',
+    Math.abs(igamc(1.5, 11.3449/2) - 0.01) < 1e-5);
+
+  // [NUOVO] t-Tuple — il conteggio con chiavi numeriche deve coincidere con il percorso
+  // a stringa che sostituisce. Implementazione di riferimento indipendente (algoritmo
+  // diverso: chiavi testuali in un oggetto), confrontata su dati casuali, periodici e
+  // costanti, per ogni lunghezza di tupla fino a 32.
+  function modeCountStringRef(bits, L){
+    const counts = {};
+    for(let i=0;i<=bits.length-L;i++){ const k=bits.slice(i,i+L).join(''); counts[k]=(counts[k]||0)+1; }
+    let maxC=0; for(const k in counts) if(counts[k]>maxC) maxC=counts[k];
+    return maxC;
+  }
+  let ttOk = true;
+  const ttSets = [
+    Array.from({length:3000}, ()=> crypto.getRandomValues(new Uint8Array(1))[0] & 1),
+    Array.from({length:3000}, (_,i)=> i%2),
+    Array.from({length:3000}, (_,i)=> (i%7)<3 ? 1 : 0),
+    new Array(3000).fill(1)
+  ];
+  for(const b of ttSets){
+    const sa = Uint8Array.from(b);
+    for(let L=1; L<=32; L++) if(tupleStats(sa,L).maxC !== modeCountStringRef(b,L)) ttOk = false;
+  }
+  check('t-Tuple — chiavi numeriche identiche al percorso a stringa (4 flussi × 32 lunghezze)', ttOk);
+
+  // [NUOVO] Espansione del seme Toeplitz in modalità contatore — vettore noto, ricalcolato
+  // qui blocco per blocco con crypto.subtle, indipendentemente dal buffer preallocato.
+  const expMat = new TextEncoder().encode('vettore-di-prova-seme-toeplitz');
+  const expGot = await sha256CounterExpand(expMat, 520);     // 65 byte → 3 blocchi SHA-256
+  const refBytes = [];
+  for(let cnt=0; cnt<3; cnt++){
+    const bi = new Uint8Array(4 + expMat.length);
+    new DataView(bi.buffer).setUint32(0, cnt, false);
+    bi.set(expMat, 4);
+    for(const by of new Uint8Array(await crypto.subtle.digest('SHA-256', bi))) refBytes.push(by);
+  }
+  check('Seme Toeplitz — espansione SHA-256 in modalità contatore (520 bit, vettore noto)',
+    expGot.join('') === bitsFromBytes(new Uint8Array(refBytes)).slice(0,520).join(''));
+  check('Seme Toeplitz — lunghezza esatta richiesta, non arrotondata al byte', expGot.length === 520);
+
+  // [NUOVO] Adaptive Proportion Test — finestra 1024 per sorgenti binarie (SP 800-90B §4.4.2)
+  check('APT — finestra predefinita 1024 (sorgenti binarie)',
+    adaptiveProportionTest(new Array(1023).fill(0), 1) === null &&
+    adaptiveProportionTest(new Array(1024).fill(0), 1) !== null);
+
+  // [NUOVO] Conteggio degli uni per due vie: devono concordare, e devono distinguere
+  // un flusso alterato di un bit (altrimenti il confronto in Fase 2 sarebbe inutile come
+  // la coppia di parita' che ha sostituito).
+  let contaOk = true, contaSensibile = true;
+  for(let trial=0; trial<20; trial++){
+    const len = 1 + Math.floor(Math.random()*500);
+    const b = Array.from({length:len}, ()=> crypto.getRandomValues(new Uint8Array(1))[0] & 1);
+    if(onesCountDirect(b) !== onesCountViaBytes(b)) contaOk = false;
+    const alterato = b.slice(); const k = Math.floor(Math.random()*len); alterato[k] ^= 1;
+    if(onesCountDirect(b) === onesCountViaBytes(alterato)) contaSensibile = false;
+  }
+  check('Conteggio degli uni — somma diretta e popcount sui byte concordano (20 prove)', contaOk);
+  check('Conteggio degli uni — il confronto rileva un bit alterato (20 prove)', contaSensibile);
+
+  // [NUOVO] Validazione del seme Toeplitz manuale: i casi degeneri vanno rifiutati, un
+  // seme da CSPRNG va accettato.
+  const semeBuono = Array.from({length:4096}, ()=> crypto.getRandomValues(new Uint8Array(1))[0] & 1);
+  check('Seme manuale — rifiuta il seme di soli zeri', validateSeedBits(new Array(4096).fill(0)).ok === false);
+  check('Seme manuale — rifiuta il seme di soli uni', validateSeedBits(new Array(4096).fill(1)).ok === false);
+  check('Seme manuale — rifiuta un seme periodico (periodo 2 e periodo 5)',
+    validateSeedBits(Array.from({length:4096},(_,i)=> i%2)).ok === false &&
+    validateSeedBits(Array.from({length:4096},(_,i)=> (i%5)<2 ? 1:0)).ok === false);
+  check('Seme manuale — accetta un seme da CSPRNG', validateSeedBits(semeBuono).ok === true);
+
+  // [NUOVO] Rivalidazione del flusso combinato: due sorgenti identiche combinate in XOR
+  // danno un flusso nullo, che le stime per sorgente non vedrebbero mai.
+  const sorgA = Array.from({length:4096}, ()=> crypto.getRandomValues(new Uint8Array(1))[0] & 1);
+  const flussoNullo = combineSourceArrays([sorgA, sorgA.slice()], 'xor');
+  check('Flusso combinato — lo XOR di due sorgenti identiche ha H_min ≈ 0',
+    combinedHmin(sorgA).hmin > HMIN_EXCLUDE && combinedHmin(flussoNullo).hmin < 0.01);
+
+  // [NUOVO] Battery ridotta sopra la soglia: deve comunque intercettare cio' per cui la
+  // rivalidazione del flusso combinato esiste. Verifica che il solo LRS riconosca una
+  // sorgente ripetuta e due sorgenti identiche combinate in XOR, e che NON si allarmi su
+  // un flusso sano (altrimenti la battery ridotta bloccherebbe sessioni legittime).
+  const semeRid = Array.from({length:3000}, ()=> crypto.getRandomValues(new Uint8Array(1))[0] & 1);
+  lrsHmin(semeRid.concat(semeRid.slice()));
+  const ridDuplicata = lrsHmin.capped === true;
+  lrsHmin(combineSourceArrays([semeRid, semeRid.slice()], 'xor'));
+  const ridXorNullo = lrsHmin.capped === true;
+  const lrSano = lrsHmin(semeRid);
+  const ridSano = (lrsHmin.capped === false) && lrSano !== null && lrSano > HMIN_EXCLUDE;
+  check('Battery ridotta (solo LRS) — intercetta sorgente duplicata e XOR nullo, non il flusso sano',
+    ridDuplicata && ridXorNullo && ridSano);
+
   const allPass = results.every(r=>r.pass);
+  /* [NUOVO] L'esito ora vincola l'uso. Il README dichiara i vettori NIST "verificati
+     prima dell'uso", ma finora un autotest fallito coloriva solo il pannello di rosso e
+     tutti i pulsanti restavano attivi: si poteva generare e portarsi via una chiave da una
+     pagina che aveva appena dichiarato rotta la propria SHAKE256. */
+  selfTestsOk = allPass;
   const el = document.getElementById('selfTestArea');
   el.className = `status ${allPass?'ok':'fail'}`;
-  el.innerHTML = results.map(r=> `${r.pass?'✅':'❌'} ${r.name}`).join('<br>');
-  log(allPass ? "Autotest all'avvio: tutti superati" : '⚠ AUTOTEST: una o più verifiche fallite');
+  el.innerHTML = results.map(r=> `${r.pass?'✅':'❌'} ${r.name}`).join('<br>') +
+    (allPass ? '' : '<br><br><b>Fasi 1-5 disabilitate.</b> Non generare chiavi con questa pagina: una verifica contro un valore noto e\' fallita, quindi il nucleo matematico non si comporta come dovrebbe su questo browser.');
+  document.getElementById('btnPhase2').disabled = !allPass;
+  if(!allPass) for(const id of ['btnPhase3','btnPhase4','btnPhase5','btnFinal','btnShake','btnCompare']){
+    const b = document.getElementById(id); if(b) b.disabled = true;
+  }
+  log(allPass ? "Autotest all'avvio: tutti superati" : '⚠ AUTOTEST: una o più verifiche fallite — fasi disabilitate');
 }
 
 buildSourceGrid();
+document.getElementById('btnPhase2').disabled = true;   // riabilitato solo se l'autotest passa
 runSelfTests();
 computeCoreIntegrityHash().then(hex=>{ document.getElementById('coreFingerprint').textContent = hex; });
 </script>
