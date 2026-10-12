@@ -1,10 +1,18 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
+## 12/10/2026 — Test reale del tetto di emissione (issue #3, in parte) — non ancora rilasciato
+
+**Modifica al codice** in `entropy_pipeline.html`:
+- Estratta la funzione `capTargetM(m, peresLen)`, definita prima della Fase 4. La Fase 4 la usa al posto del calcolo inline: stesso target, stesso messaggio di riduzione.
+- Il test del tetto nell'autotest ripeteva la formula (`Math.floor(999/2)===499`) senza chiamare il codice reale, quindi una regressione sul tetto sarebbe passata inosservata. Ora il test chiama `capTargetM` con tre casi: 600 con 999 bit → 499 e ridotto; 300 con 999 → 300 e non ridotto; 1000 con 1000 → 500.
+- Verifica: autotest in Chromium headless, 27/27 ✅ sia prima sia dopo la modifica. Con il tetto disattivato in una copia di prova, il test diventa ❌ (26 ✅, 1 ❌).
+- SHA-256 del blocco `<script id="core-script">`: `d96738bfe7b5cdde7b3e2c13dd5bef82fb286cc6e541af0c2629715618796881` (prima: `fc53847bedbed84b4a0b17d6a174b90f1867b4d271d0ebc2888ca6e4707267c6`).
+- SHA-256 del file intero `entropy_pipeline.html`: `628a1b9440d793476b8c8efccb0a4733aa485c73c272f3eacc80e918c0a10117`.
+- La versione nel titolo della pagina non è stata modificata.
+
 ## 12/10/2026 — Documentazione: requisiti sulle sorgenti (issue #4) — non ancora rilasciato
 
-Nessuna modifica al codice. `entropy_pipeline.html` resta quello della seconda serie sotto:
-il SHA-256 del blocco `<script id="core-script">` resta `fc53847bedbed84b4a0b17d6a174b90f1867b4d271d0ebc2888ca6e4707267c6`,
-e i riferimenti a questo hash nelle voci precedenti restano validi.
+Nessuna modifica al codice in questa voce. Al momento della sua stesura `entropy_pipeline.html` era quello della seconda serie sotto, con core-script `fc53847bedbed84b4a0b17d6a174b90f1867b4d271d0ebc2888ca6e4707267c6`; la voce precedente lo modifica (vedi sopra).
 
 **Verificato sul codice.** `MIN_PASTE_BITS = 256` (riga 1168); una finestra con meno di 256 bit viene
 rifiutata con «Servono almeno 256 bit…» e non entra nel calcolo (riga 1409). Il placeholder

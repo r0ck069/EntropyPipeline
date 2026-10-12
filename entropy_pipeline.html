@@ -1599,6 +1599,13 @@ document.getElementById('btnPhase3').addEventListener('click', ()=>{
   document.getElementById('btnPhase4').disabled=false;
 });
 
+// Tetto di emissione ⌊input/2⌋: restituisce il target effettivo e se è stato ridotto.
+// Funzione separata dalla Fase 4, così che l'autotest la chiami davvero.
+function capTargetM(m, peresLen){
+  const hardCap = Math.floor(peresLen/2);
+  return { m: m > hardCap ? hardCap : m, capped: m > hardCap, hardCap };
+}
+
 /* ============================== FASE 4 (con tetto di emissione ⌊input/2⌋) ============================== */
 document.getElementById('btnPhase4').addEventListener('click', async ()=>{
   const p4 = document.getElementById('p4status');
@@ -1609,11 +1616,11 @@ document.getElementById('btnPhase4').addEventListener('click', async ()=>{
   // [NUOVO] Tetto di emissione conservativo, indipendente dal bound LHL: mai
   // più della metà dei bit disponibili in ingresso a questa fase. Rete di
   // sicurezza a basso costo — vedi SECURITY-NOTES.md.
-  const hardCap = Math.floor(state.peresOut.length/2);
+  const capped = capTargetM(m, state.peresOut.length);
   let capNote = '';
-  if(m > hardCap){
-    capNote = `\n⚠ Target ridotto da ${m} a ${hardCap} bit: tetto di sicurezza indipendente dal bound LHL.`;
-    m = hardCap;
+  if(capped.capped){
+    capNote = `\n⚠ Target ridotto da ${m} a ${capped.hardCap} bit: tetto di sicurezza indipendente dal bound LHL.`;
+    m = capped.m;
   }
   if(m<=0){ p4.className='status fail'; p4.textContent='Bit insufficienti in uscita dalla Fase 3 per procedere.'; return; }
 
@@ -1885,7 +1892,7 @@ async function runSelfTests(){
   check('erfc (Abramowitz-Stegun) — valori noti, errore assoluto < 2e-7', erfcAS);
 
   // [NUOVO] Autotest del tetto di emissione ⌊input/2⌋
-  check('Tetto di emissione ⌊input/2⌋ — non superabile', Math.floor(999/2)===499 && Math.floor(1000/2)===500);
+  check('Tetto di emissione ⌊input/2⌋ — non superabile', capTargetM(600,999).m===499 && capTargetM(600,999).capped===true && capTargetM(300,999).m===300 && capTargetM(300,999).capped===false && capTargetM(1000,1000).m===500);
 
   // [beta6] Stimatori SP 800-90B contro l'output ufficiale di ea_non_iid su un vettore di 603 bit casuali
   // (SHA-256 del file di byte 0/1: 7edc140e778fffa94c10ac95e4be19c47986fdfe16e837afed8acbc5d29f9c5a)
