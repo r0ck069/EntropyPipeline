@@ -269,7 +269,7 @@ Uno o due telefoni cellulari, una macchina fotografica che abbia la possibilità
 le foto in RAW, una o meglio due radio FM economiche a batterie, un dado in buone condizioni,
 una moneta possibilmente in buone condizioni e bilanciata (da 2 euro esce certificata dalla
 Zecca di Stato), 8 numeri della tombola, un file zip autocreato offline di qualche mega e
-poi distrutto.Con il microfono del telefono ed escludendo i filtri in ingresso, raw, mono 
+poi distrutto. Con il microfono del telefono ed escludendo i filtri in ingresso, raw, mono 
 (queste app lo fanno), già due o più minuti di audio in un bar frequentato o in una mensa
 genera un audio con tanto materiale difficilmente prevedibile, buono da estrarre. O anche
 il campionamento dal sensore del giroscopio o magnetometro o accelerometro in una strada con
@@ -278,5 +278,15 @@ questa build è pensato proprio per questo caso d'uso. L'importante è prendere 
 grezze campionate che fra loro non abbiano correlazioni apparenti: il segnale audio di due
 radio FM a batterie sintonizzate fuori frequenza, una foto completamente nera fatta in raw
 tappando l'obiettivo, un giroscopio e il rumore in un bar o una mensa affollata hanno ben
-poco in comune. Basta che una sola tra le sorgenti scelte abbia "qualità entropica", meglio
-se presi in autonomia con 2 telefoni diversi ed una reflex.
+poco in comune. Ogni sorgente deve contenere almeno 256 bit: lo strumento rifiuta le
+finestre più corte. Lo standard NIST SP 800-90B (§3.1.1, punto 1) richiede un dataset
+sequenziale di almeno 1.000.000 di campioni grezzi dalla stessa sorgente. Se non è possibile,
+ammette la concatenazione di insiemi più piccoli della stessa sorgente, purché ciascuno
+contenga almeno 1000 campioni e il totale raggiunga 1.000.000. Questo progetto usa un numero
+di bit molto inferiore e concatena sorgenti diverse: il minimo di 256 bit per sorgente è una
+deviazione dichiarata, non una conformità. Chi usa lo strumento può fornire più di 256 bit per
+singola sorgente, per avvicinarsi ai 1000 campioni richiesti per ciascun insieme. Le sorgenti
+devono essere prodotte in proprio e poi distrutte, di buona qualità e indipendenti tra loro.
+Prima di entrare nel cluster dei bit candidati per la seed, ogni sorgente deve superare i test:
+usa «Analizza» per vedere H_min, RCT e APT. La provenienza delle sorgenti non è verificabile
+dallo strumento e resta a carico di chi le raccoglie.

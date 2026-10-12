@@ -56,6 +56,14 @@ rumore, ecc.) — il tool stesso non genera né simula entropia in nessuna fines
   delle 1000 prove a 603 bit.
 - Basta compilarne anche **una sola**: le altre restano semplicemente vuote e vengono
   ignorate. Funziona con 1, 2, 3 o 4 sorgenti indistintamente.
+- **Requisito sulle sorgenti:** ogni sorgente va prodotta in proprio, distrutta dopo l'uso,
+  deve essere di qualità e indipendente dalle altre, e deve superare i test di «Analizza»
+  prima di far parte dei bit candidati per la seed. Il tool non controlla la provenienza.
+- **Minimo e standard:** il minimo è di 256 bit per sorgente. Lo standard NIST SP 800-90B
+  (§3.1.1, punto 1) richiede un dataset sequenziale di almeno 1.000.000 di campioni grezzi dalla
+  stessa sorgente; se non è possibile, ammette la concatenazione di insiemi più piccoli della
+  stessa sorgente, con almeno 1000 campioni ciascuno. Il progetto concatena sorgenti diverse:
+  256 bit è una deviazione dichiarata, non una conformità (vedi README).
 - Premi "Analizza" su ogni finestra compilata: mostra la stima di min-entropia (il minimo
   fra più stimatori: MCV, Markov, t-Tuple, LRS, Collisione e, da 6012 bit in su, Compressione)
   e l'esito di due health test retrospettivi
@@ -64,10 +72,10 @@ rumore, ecc.) — il tool stesso non genera né simula entropia in nessuna fines
   esclusa dal calcolo successivo — non serve rimuoverla a mano.
 - "Svuota" cancella una finestra e la relativa analisi.
 
-**Consiglio pratico:** con una sola sorgente al minimo esatto di 256 bit, capita
-occasionalmente (per pura variabilità statistica dei dati, non per un difetto del tool) che
-venga respinta. Con 2+ sorgenti, o con più di 256 bit per sorgente, il margine aumenta e
-questo diventa raro.
+**Consiglio pratico:** con una sola sorgente al minimo di 256 bit, capita occasionalmente (per
+pura variabilità statistica dei dati, non per un difetto del tool) che venga esclusa dal calcolo
+perché H_min scende sotto 0,3. Fornire più bit per singola sorgente aumenta il margine, rende
+questo caso raro e avvicina ai 1000 campioni richiesti dallo standard.
 
 ### Fase 2 — Concatenazione, checksum, correlazione
 

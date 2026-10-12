@@ -1,5 +1,30 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
+## 12/10/2026 — Documentazione: requisiti sulle sorgenti (issue #4) — non ancora rilasciato
+
+Nessuna modifica al codice. `entropy_pipeline.html` resta quello della seconda serie sotto:
+il SHA-256 del blocco `<script id="core-script">` resta `fc53847bedbed84b4a0b17d6a174b90f1867b4d271d0ebc2888ca6e4707267c6`,
+e i riferimenti a questo hash nelle voci precedenti restano validi.
+
+**Verificato sul codice.** `MIN_PASTE_BITS = 256` (riga 1168); una finestra con meno di 256 bit viene
+rifiutata con «Servono almeno 256 bit…» e non entra nel calcolo (riga 1409). Il placeholder
+«min 256 bit» è corretto.
+
+**Modifiche (solo documentazione).**
+- `README.md` — sezione «Per la raccolta delle sorgenti»: sostituita la frase «Basta che una sola
+  tra le sorgenti scelte abbia "qualità entropica"…» con il requisito: almeno 256 bit per sorgente;
+  sorgenti prodotte in proprio, distrutte dopo l'uso, di buona qualità e indipendenti; test con
+  «Analizza» (H_min, RCT, APT) prima dei bit candidati per la seed; provenienza non verificabile dal tool;
+  riferimento a NIST SP 800-90B §3.1.1 (1.000.000 campioni; 1000 per insiemi concatenati) e compromesso dichiarato.
+- `ISTRUZIONI.md` — Fase 1: aggiunti il requisito sulle sorgenti e il riferimento allo standard; corretto
+  il consiglio pratico: l'esclusione avviene per H_min sotto 0,3, non per rifiuto da lunghezza. Il riferimento
+  allo standard precisa che la concatenazione dello standard è della stessa sorgente, cosa che il progetto non fa.
+- `README.md` — corretto uno spazio mancante in «distrutto.Con» (errore preesistente, riga 272).
+
+Questione chiusa: issue #4 (sorgenti sotto soglia). Decisione: soglia di 256 bit invariata, senza
+eccezioni per nessuna sorgente. Compromesso dichiarato: 256 bit è una deviazione dallo standard
+NIST SP 800-90B §3.1.1.
+
 ## Non ancora rilasciato — correzioni di conformità e prestazioni
 
 Due serie di modifiche, descritte separatamente qui sotto. **La prima** (conformità e
