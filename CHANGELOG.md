@@ -1,6 +1,68 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
-## 12/10/2026 — Test reale del tetto di emissione (issue #3, in parte) — non ancora rilasciato
+## v2.0.0-beta7 (2026-10-12) — NON ANCORA PUBBLICATA
+
+Hash finali (della copia di lavoro, da ricalcolare solo se il file cambia):
+- SHA-256 del blocco `<script id="core-script">`: `499174bb04618e904b381f00e5075042fbf7e205bec3ebd61fe234792f0d6573`
+- SHA-256 del file intero `entropy_pipeline.html`: `ae0a1a661c64ef761607f90c5a520454111991f22d63054bdf9512d2786dfb17`
+
+Il titolo della pagina e la riga «Build» sono `v2.0.0-beta7`. Autotest all'avvio finale: **27 su 27**. Riverifica finale del 13/10/2026 su questo file: blocco dei gestori con autotest forzato, confronto con la versione precedente su 10 casi (nessuna differenza), CSV e 2^53, messaggio RCT con run artificiale.
+
+**Elenco completo rispetto alla beta6.** I dettagli, con misure e motivazioni, sono nelle sezioni datate 12/10/2026 e «Non ancora rilasciato» più sotto; ogni voce qui indica dove.
+
+*Correttezza e conformità (sezione «Non ancora rilasciato», prima e seconda serie)*
+- Longest Run: p-value con 3 gradi di libertà (`igamc(1.5, χ²/2)`); falsi FAIL su sequenze CSPRNG da 1024 bit da 2,50% a circa 1%.
+- Adaptive Proportion Test: finestra 1024 per sorgenti binarie (era 512).
+- t-Tuple: conteggio con chiavi numeriche, dalla PR allegata all'issue #6; equivalenza con il percorso a stringa verificata su 4 flussi × 32 lunghezze. Oltre L=52 resta il percorso a stringa.
+- erfc: test contro valori noti, con tolleranza relativa per Numerical Recipes e assoluta per Abramowitz-Stegun.
+- Seme Toeplitz manuale: rifiutati i semi costanti, periodici (periodo fino a 32) e con H_min sotto 0,3; avviso sotto 0,8 (`validateSeedBits()`).
+- Flusso combinato: rivalidazione con gli stimatori; budget per il bound LHL = minimo fra la contabilità per sorgente e quella sul flusso combinato; Fase 2 si ferma sotto 0,3; in concatenazione, correlazione rilevata = budget al massimo invece della somma (seconda serie e terza serie).
+- Soglia della battery sul flusso combinato: 1.000.000 bit, completa sotto, solo LRS sopra (terza serie). La soglia non è cambiata.
+- Prodotto Toeplitz: `verifyToeplitz()` rimossa (era una tautologia); aggiunta `toeplitzHashByShift()`, calcolata a runtime in Fase 4 sull'output vero e confrontata con il prodotto diretto.
+- Conteggio degli uni: `onesCountDirect()` e `onesCountViaBytes()` sostituiscono la coppia di checksum che coincideva per costruzione.
+- Autotest vincolante: con una verifica fallita le Fasi 1-5 sono disabilitate e la pagina lo dichiara (seconda serie, «Blocco dei gestori»).
+- Output finale: l'etichetta dichiara la forza di sicurezza effettiva (al più `m` bit, da Fase 4) e avvisa quando è sotto 256.
+- Tetto di emissione ⌊input/2⌋: test sulla funzione reale `capTargetM()` (commit `581baf8`, 12/10/2026, verificato su GitHub il 13/10/2026).
+- Documentazione sulle sorgenti (issue #4): soglia di 256 bit confermata; deviazione dallo standard NIST SP 800-90B §3.1.1 dichiarata in README e ISTRUZIONI.
+
+*Stato e interfaccia (issue #5 e #6)*
+- Issue #5, opzione B: scelta automatica dell'assistente CSV rimossa; la configurazione la sceglie l'utente. I bit portano un avviso in Fase 1: H_min misura i numeri, non la loro origine.
+- Issue #5, punto 3: valori oltre 2^53 scartati e segnalati; messaggio corretto quando lo scarto causa il vuoto.
+- Issue #6, parte a: rianalizzare o svuotare una sorgente, o rieseguire la Fase 2, azzera le fasi a valle e disabilita le Fasi 3-5 (`invalidateDownstream()`).
+- Issue #6, parte b: stima cedevole (`combinedHminAsync()`), con lo stimatore in corso mostrato; una seconda analisi durante un calcolo è rifiutata con messaggio. Web Worker integrato nel file beta7 del 13/10/2026: la stima non blocca il thread principale nelle prove (ritardo massimo 1006 ms su 1.000.000 di bit, una prova in Chrome); il tempo di risposta ai clic non è stato misurato.
+- Contatore in secondi durante ogni stima (`calcIndicator`): avanza solo se il browser risponde.
+- LRS a passi: l'LRS cede il controllo fra una lunghezza di tupla e la successiva; la versione sincrona resta identica.
+- Avviso in Fase 1 quando le sorgenti hanno meno di 1.000.000 campioni (SP 800-90B), senza alzare la soglia d'ingresso di 256 bit.
+
+*Prestazioni (issue #6, misurate; dettagli nella sezione beta7 «Ottimizzazione dei costi»)*
+- `markovHmin()` con contatori numerici; LRS con conteggio sulle sole posizioni candidate per W>20; Compressione con pesi subnormali azzerati.
+- Output identici alla versione precedente su 10 casi deterministici, incluso 1.000.000 di bit.
+
+**Verifiche finali** (Chromium headless, versione finale):
+- Autotest all'avvio: 27 ✅, 0 ❌.
+- Equivalenza fra stima cedevole e sincrona su due flussi da 20.000 bit; confronto bit per bit con la versione precedente su 10 casi: nessuna differenza.
+- Controllo di sensibilità del confronto: una copia volutamente errata (soglia 1e-5 nella Compressione) produce differenze, quindi il confronto rileva le differenze.
+- Guardia contro l'analisi doppia; stato incoerente dopo rianalisi, svuotamento e Fase 2 rieseguita; blocco dei gestori con autotest fallito.
+- Assistente CSV: sinusoide con configurazione scelta dall'utente, avviso mostrato, nessun errore JavaScript; scala 1e12 con valori da 10^6: scarto oltre 2^53 segnalato.
+
+**Limiti dichiarati.**
+- Pausa massima della UI, misurata dopo l'LRS a passi: tra 0,19 e 0,45 s su 1.000.000 di bit (cinque prove; 0,29 s nella riverifica del 12/10); tra 1,4 s e 2,5 s su 4.000.000 di bit (due prove: 1,4 s nella prova precedente, 2,46 s nella riverifica del 12/10).
+- Analisi di una sorgente da 4.000.000 bit in Fase 1 (battery completa, Chromium headless): 6,4 s e 7,7 s in due prove della riverifica del 12/10. La misura di 4,4 s che compariva in una bozza precedente di questa voce non è riprodotta e non va usata. La Fase 2 sopra 1.000.000 bit esegue solo l'LRS, quindi ha un costo diverso. Le misure in Node riportate nelle sezioni più sotto sono precedenti alle ottimizzazioni e non vanno usate come stato attuale.
+- La soglia di 1.000.000 bit della Fase 2 è invariata; il costo ora è più basso, ma rivederla è una decisione di sicurezza separata.
+- Non verificato in Firefox né sul Pi. Le misure sono di questa macchina, in Chromium headless.
+- RCT applicato all'intera sorgente con α = 2⁻²⁰ per campione: su bit casuali ideali falsi allarmi nel 6,1% dei casi a 1.000.000 di bit (61 su 1000) e nel 23% a 4.000.000 (46 su 200). Decisione A: soglia invariata, limite dichiarato in README e ISTRUZIONI. Il messaggio di esclusione per RCT/APT ora dice «da verificare».
+- Il file non è ancora stato pubblicato su GitHub.
+
+## 12/10/2026 — Blocco dei gestori Fase 5, Output finale e SHAKE256 con autotest fallito — confluito in beta7 (hash superati)
+
+**Modifica al codice** in `entropy_pipeline.html`: i gestori dei pulsanti «Esegui FASE 5», «Calcola SHA-256(SHA-256(output))» e «Calcola SHAKE256» chiamano ora `requireSelfTests`, come le Fasi 1-4. Prima dipendevano solo dal pulsante disabilitato, che può essere riabilitato da console.
+- Verifica nel browser (Chromium headless): con autotest fallito e pulsanti riabilitati a forza, i tre gestori mostrano il messaggio di blocco e non producono output. Con autotest superato funzionano come prima.
+- SHA-256 del blocco `<script id="core-script">`: `aa8c38054df009bf4c734bd4cb35c5c89ced4e15dcb3031d360186bfe26d8d99` (prima: `d96738bfe7b5cdde7b3e2c13dd5bef82fb286cc6e541af0c2629715618796881`).
+- SHA-256 del file intero `entropy_pipeline.html`: `2c55fe881279437b002ea5937706f60830b5798f2d63b6071152b2278a1af33f`.
+
+## 12/10/2026 — Tetto di emissione: test sulla funzione reale `capTargetM()` (commit `581baf8`)
+
+I cinque punti della issue #3 sono nel commit `d24b7a1`; la chiusura della issue è decisa a parte.
 
 **Modifica al codice** in `entropy_pipeline.html`:
 - Estratta la funzione `capTargetM(m, peresLen)`, definita prima della Fase 4. La Fase 4 la usa al posto del calcolo inline: stesso target, stesso messaggio di riduzione.
@@ -39,8 +101,7 @@ Due serie di modifiche, descritte separatamente qui sotto. **La prima** (conform
 prestazioni) non cambia il bound LHL né la contabilità dell'entropia: sono tre correzioni di
 conformità alla norma, due di prestazioni, una di etichetta. **La seconda** (validazione del
 seme e del flusso combinato) la contabilità invece la cambia, ed è dichiarato nella sua
-sezione. La versione nel titolo della pagina non è stata toccata: al rilascio va aggiornata
-insieme agli hash qui sotto.
+sezione. Il titolo della pagina e la riga Build sono già v2.0.0-beta7; gli hash della voce beta7 in cima sono quelli del file integrato del 13/10.
 
 **Il problema, misurato.**
 - `longestRunOnes()` calcolava il p-value come `exp(-chi2/2)`, cioè `igamc(1, chi2/2)`: due
@@ -55,8 +116,8 @@ insieme agli hash qui sotto.
   campioni sono sempre binari, 1 bit per campione.
 - `tTupleHmin()` contava le tuple con chiavi stringa (`bits.slice(i,i+L).join('')`): una
   stringa allocata per ogni posizione del campione, per ogni lunghezza di tupla. Era il
-  collo di bottiglia di `combinedHmin()`: **7,73 s su 1.000.000 di bit**, su un totale di
-  13,4 s. Accanto, `tupleStats()` faceva già lo stesso conteggio con chiavi numeriche a
+  collo di bottiglia di `combinedHmin()`: **7,73 s su 1.000.000 di bit** (misura in Node, issue #6), su un totale di
+  13,4 s (Node). Accanto, `tupleStats()` faceva già lo stesso conteggio con chiavi numeriche a
   finestra scorrevole, validato contro `ea_non_iid` nella beta6.
 - L'espansione del seme Toeplitz riallocava e ricopiava l'intero buffer di uscita a ogni
   blocco da 32 byte: quadratica nella lunghezza del seme. Per un seme da ~125 KB (una
@@ -65,8 +126,7 @@ insieme agli hash qui sotto.
   SHA-256 restituisce sempre 256 bit di *lunghezza*, ma la forza di sicurezza non supera
   gli `m` bit emessi dalla Fase 4. La riduzione operata dal tetto ⌊input/2⌋ è già segnalata
   dal messaggio di Fase 4 (`capNote`); quello che mancava era dirlo anche accanto all'output
-  finale, dove la casella dichiarava comunque 256 bit.
-  Con `m` basso la casella dichiarava comunque 256 bit: contrario al Principio 1 di
+  finale, dove la casella dichiarava comunque 256 bit: contrario al Principio 1 di
   `SECURITY-NOTES.md` («mai inventare bit»).
 
 **Modifiche.**
@@ -78,7 +138,7 @@ insieme agli hash qui sotto.
   preallocato: ora è verificabile con un vettore noto, prima era inline e non testabile.
   Output finale: etichetta «lunghezza 256 bit — forza di sicurezza *m* bit», più un
   avviso esplicito quando *m* < 256. Corretto il plurale «sorgentei» in Fase 2.
-- Sei autotest nuovi (**17 in totale**): due valori della tavola del chi-quadro a 3 gradi
+- Sei autotest nuovi (**17 in totale** a fine prima serie; **27** nella versione finale, con quelli delle serie successive): due valori della tavola del chi-quadro a 3 gradi
   di libertà (7,8147→0,05 e 11,3449→0,01); equivalenza del conteggio t-Tuple numerico
   contro un'implementazione di riferimento a stringhe, su 4 flussi (casuale, alternato,
   periodo 7, costante) × 32 lunghezze di tupla; espansione del seme contro un ricalcolo
@@ -86,23 +146,22 @@ insieme agli hash qui sotto.
   al byte; finestra APT predefinita a 1024.
 
 **Verifica.**
-- Autotest all'avvio: 17 su 17.
+- Autotest all'avvio a fine prima serie: 17 su 17 (stato intermedio; finale 27 su 27).
 - Equivalenza t-Tuple: il nuovo percorso numerico e quello a stringa danno conteggi
   identici sui 128 confronti dell'autotest (4 flussi × 32 lunghezze), inclusi i casi
   periodici e costanti. La stessa verifica, ripetuta fuori dalla pagina fino a L=40
   (160 confronti), dà lo stesso esito: sono due misure distinte e vanno citate come
   tali. `tTupleHmin()` restituisce gli stessi valori di prima del cambio.
-- Prestazioni su 1.000.000 di bit: `tTupleHmin()` da **7730 ms a 40 ms**;
+- Prestazioni su 1.000.000 di bit, misura in Node: `tTupleHmin()` da **7730 ms a 40 ms**;
   `combinedHmin()` nel complesso da **13,4 s a 6,7 s**. Il resto ora è LRS (4,2 s) e
-  Compressione (2,4 s).
+  Compressione (2,4 s), misure Node di questo passo; le cifre finali in Chromium sono nella sezione «Verifiche finali».
 - Longest Run dopo il fix: falsi FALLITI tornati a ~1% su 3000 sequenze CSPRNG da 1024 bit.
 - Pipeline completa (Fasi 1→5, output finale, SHAKE256, confronto XOR-LFSR) eseguita su
   due sorgenti CSPRNG indipendenti da 40.000 bit: nessuna regressione, l'avviso di forza
   di sicurezza compare quando *m* < 256 e non compare quando *m* = 256.
-- SHA-256 del blocco `<script id="core-script">`: `8b4550190c6607c9a0e18fc9f97e672bf7d4c34fcf91419425db13aedea554c5`
+- Passo intermedio (superato). SHA-256 del blocco `<script id="core-script">`: `8b4550190c6607c9a0e18fc9f97e672bf7d4c34fcf91419425db13aedea554c5`
   (era `db96d801827745654db23d51ff467913449d4a4ae8bd7bc42ec3f9b63a185528`). È il valore che
-  il pannello «Integrità» mostra al caricamento. Le voci storiche e il README vanno
-  aggiornati con questo valore al momento del rilascio.
+  il pannello «Integrità» mostra al caricamento. Valore intermedio: superato dalle serie successive (hash finale in cima alla voce).
 
 ### Seconda serie — i controlli che non controllavano, e i due buchi che lasciavano aperti
 
@@ -177,25 +236,25 @@ altrettanti percorsi per arrivare a una chiave senza entropia.
   che la min-entropia misura i numeri e non la loro origine fisica.
 - `yieldToUI()` — cede il controllo al browser prima dei calcoli lunghi, cosi' il messaggio
   di attesa viene dipinto. Palliativo, non un sostituto di un Web Worker.
-- Nove autotest nuovi (**26 in totale**): sensibilita' del confronto Toeplitz a un seme
+- Nove autotest nuovi (**26 in totale** a fine seconda serie; **27** con la terza): sensibilita' del confronto Toeplitz a un seme
   alterato di un bit; coerenza e sensibilita' del doppio conteggio degli uni; i quattro casi
   della validazione del seme; `erfc` contro valori noti (errore relativo per Numerical
   Recipes, assoluto per Abramowitz-Stegun); H_min nulla sullo XOR di due sorgenti identiche.
 
 **Verifica.**
-- Autotest all'avvio: **26 su 26**, stabile su esecuzioni ripetute.
-- Suite di comportamento, 16 controlli su 16, con un DOM minimo in Node: percorso normale
+- Autotest all'avvio a fine seconda serie: **26 su 26**, stabile su esecuzioni ripetute (stato intermedio; finale 27 su 27).
+- Suite di comportamento in Node (passo intermedio), 16 controlli su 16, con un DOM minimo: percorso normale
   completo; invalidazione dello stato a valle dopo la modifica di una sorgente; rifiuto dei
   semi tutto-zero, tutto-uno e a periodo 2; accettazione di un seme da CSPRNG; il caso
   `c = a XOR b XOR d` ora **bloccato** (H_min del flusso combinato 0,0000); la sorgente
   duplicata in concatenazione ora **bloccata**.
-- **Costo, misurato in Node.** La rivalidazione del flusso combinato raddoppia abbondantemente
+- **Costo, misurato in Node prima delle ottimizzazioni successive.** La rivalidazione del flusso combinato raddoppia abbondantemente
   il lavoro della Fase 2: `combinedHmin()` impiega 6,1 s su 1 Mbit, 17,5 s su 2 Mbit e
   40,9 s su 4 Mbit. Con quattro sorgenti da 1 Mbit la Fase 2 passa da istantanea a circa 40 s
   in Node, di piu' nel browser. Il doppio prodotto Toeplitz aggiunge 573 ms su 1 Mbit
   (444 ms il calcolo diretto). E' il prezzo della correttezza su questo punto, e rende il
   Web Worker piu' necessario di prima.
-- SHA-256 del blocco `<script id="core-script">` dopo questa seconda serie: `fc53847bedbed84b4a0b17d6a174b90f1867b4d271d0ebc2888ca6e4707267c6`. Sostituisce il valore indicato sopra per la prima serie: e' questo il numero che il pannello Integrita' mostra al caricamento.
+- Passo intermedio (superato). SHA-256 del blocco `<script id="core-script">` dopo questa seconda serie: `fc53847bedbed84b4a0b17d6a174b90f1867b4d271d0ebc2888ca6e4707267c6`. Sostituisce il valore indicato sopra per la prima serie: e' questo il numero che il pannello Integrita' mostra al caricamento.
 
 ### Terza serie — soglia sulla battery di rivalidazione
 
@@ -222,7 +281,7 @@ LHL. Sarebbe una regressione di sicurezza, non un'ottimizzazione.
 valere di meno il vincolo nuovo: non alza mai il budget sopra quello che la beta6 avrebbe
 dato da sola.
 
-**Costo, misurato in Node.** Il risparmio è modesto, perché l'LRS è esso stesso lo stimatore
+**Costo, misurato in Node prima delle ottimizzazioni successive.** Il risparmio è modesto, perché l'LRS è esso stesso lo stimatore
 costoso:
 
 ```
@@ -233,8 +292,7 @@ costoso:
 ```
 
 Circa il 24% in meno a 4 Mbit, non un ordine di grandezza. Con due sorgenti da 600.000 bit
-(flusso combinato di 1.200.000) la Fase 2 impiega 6,4 s end-to-end. Il rimedio vero al costo
-resta il Web Worker della issue #6.
+(flusso combinato di 1.200.000) la Fase 2 impiega 6,4 s end-to-end (misura Node, pre-ottimizzazione). Il Web Worker della issue #6 non è implementato in beta7: resta la soluzione strutturale al costo.
 
 **Verifica.** Autotest 27 su 27. Suite di comportamento 16 su 16, più 5 controlli nuovi sul
 percorso sopra la soglia (battery ridotta dichiarata, dimensione e soglia nel messaggio,

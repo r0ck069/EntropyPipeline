@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entropy Extraction Pipeline — Peres + Toeplitz (v2.0.0-beta6)</title>
+<title>Entropy Extraction Pipeline — Peres + Toeplitz (v2.0.0-beta7)</title>
 <style>
 :root{
   --bg:#f5f5f5; --card:#ffffff; --border:#ddd; --text:#222; --muted:#666;
@@ -62,7 +62,7 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
 <h1>Entropy Extraction Pipeline — Peres + Toeplitz</h1>
 <p class="subtitle">
   Standalone, offline, zero dipendenze esterne. Pensato per Firefox su Ubuntu MATE Live.<br>
-  Build <b>2.0.0-beta6</b> (2026-10-02) — <b>BETA NON AUDITATA</b>.
+  Build <b>2.0.0-beta7</b> (2026-10-12) — <b>BETA NON AUDITATA</b>.
   Changelog completo: <code>CHANGELOG.md</code>. Note d'audit ereditate: <code>AUDIT-NOTES.md</code>.
   Principi di sicurezza del progetto: <code>SECURITY-NOTES.md</code>.
 </p>
@@ -76,11 +76,15 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
 <!-- FASE 0 (opzionale) -->
 <div class="card">
   <h2>Assistente opzionale — dati numerici (sensore/CSV) → bit grezzi <span class="badge">NUOVO</span></h2>
-  <p style="font-size:.8rem;color:var(--muted);margin:-4px 0 10px;">Incolla letture numeriche (accelerometro, giroscopio, CSV di sensori — spazi/virgole/tab come separatori, una riga per campione o per gruppo di colonne). <b>Non genera entropia</b>: sceglie automaticamente scala, numero di LSB, modalità (valore diretto/differenza) e interleave fra colonne provando più combinazioni e tenendo quella con il punteggio migliore (bilanciamento 0/1 + Shannon + bassa autocorrelazione + lunghezza), poi estrae i bit meno significativi realmente presenti nei dati incollati. I bit prodotti restano comunque soggetti alla stessa stima rigorosa di min-entropia (Clopper-Pearson) di ogni sorgente, una volta inviati a Fase 1.</p>
-  <p style="font-size:.8rem;color:var(--muted);margin:-4px 0 10px;"><b>Limite da conoscere prima di usarlo.</b> La min-entropia misura <i>questi numeri</i>, non la loro origine fisica: nessuno stimatore statistico può distinguere il rumore di un sensore da un processo deterministico. Una sinusoide pura, entropia reale zero, attraversa tutti i controlli di questa pagina con H_min≈0,50 — e anche i dieci stimatori di <code>ea-non-iid-verifica</code>, predittori compresi, non la riconoscono. In più, la ricerca automatica sceglie fra decine di configurazioni quella che <i>sembra</i> più casuale, quindi la stima che ne esce è ottimistica per costruzione. L'imprevedibilità deve venire dal fenomeno fisico: di quella risponde chi raccoglie i dati, non lo strumento.</p>
+  <p style="font-size:.8rem;color:var(--muted);margin:-4px 0 10px;">Incolla letture numeriche (accelerometro, giroscopio, CSV di sensori — spazi/virgole/tab come separatori, una riga per campione o per gruppo di colonne). <b>Non genera entropia</b>: estrae i bit meno significativi realmente presenti nei dati incollati usando la configurazione che scegli tu (scala, numero di LSB, modalità valore diretto o differenza, interleave fra colonne). Nessuna configurazione viene scelta automaticamente. I bit prodotti restano comunque soggetti alla stessa stima rigorosa di min-entropia (Clopper-Pearson) di ogni sorgente, una volta inviati a Fase 1.</p>
+  <p style="font-size:.8rem;color:var(--muted);margin:-4px 0 10px;"><b>Limite da conoscere prima di usarlo.</b> La min-entropia misura <i>questi numeri</i>, non la loro origine fisica: nessuno stimatore statistico può distinguere il rumore di un sensore da un processo deterministico. Una sinusoide pura, entropia reale zero, attraversa tutti i controlli di questa pagina con H_min≈0,50 — e anche i dieci stimatori di <code>ea-non-iid-verifica</code>, predittori compresi, non la riconoscono. Scegliere fra più configurazioni e tenere quella che <i>sembra</i> più casuale renderebbe la stima ottimistica: per questo la configurazione la scegli tu. L'imprevedibilità deve venire dal fenomeno fisico: di quella risponde chi raccoglie i dati, non lo strumento.</p>
   <textarea id="csvInput" placeholder="0.1234 -0.056 1.998&#10;0.1241 -0.051 2.001&#10;…"></textarea>
   <div class="row" style="margin-top:8px;">
-    <button id="btnCsvAnalyze">Analizza e proponi bit</button>
+    <label style="font-size:.82rem;">Scala <select id="csvScaleSelect"><option value="raw">grezza (interi)</option><option value="1e3">1e3</option><option value="1e6" selected>1e6</option><option value="1e9">1e9</option><option value="1e12">1e12</option></select></label>
+    <label style="font-size:.82rem;">Modo <select id="csvModeSelect"><option value="direct" selected>valore diretto</option><option value="diff">differenza</option><option value="absdiff">differenza assoluta</option></select></label>
+    <label style="font-size:.82rem;">LSB <select id="csvLsbSelect"><option value="1">1</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
+    <label style="font-size:.82rem;">Interleave <select id="csvInterleaveSelect"><option value="0" selected>no</option><option value="1">sì</option></select></label>
+    <button id="btnCsvAnalyze">Estrai bit con questa configurazione</button>
     <label style="font-size:.82rem;">Invia a:
       <select id="csvTargetSelect">
         <option value="0">Sorgente 1</option><option value="1">Sorgente 2</option>
@@ -92,6 +96,8 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
   <div id="csvStatus" class="status neutral" style="margin-top:8px;">In attesa di dati numerici…</div>
 </div>
 
+<!-- INDICATORE DI CALCOLO (issue #6): il contatore avanza solo se il browser risponde -->
+<div id="calcIndicator" class="status neutral" role="status" aria-live="polite" style="display:none;margin:8px 0"></div>
 <!-- FASE 1 -->
 <div class="card">
   <h2>Fase 1 — Inserimento bit grezzi <span class="badge">fino a 4 sorgenti, minimo 1</span></h2>
@@ -102,7 +108,7 @@ small.note{color:var(--muted);display:block;margin-top:6px;font-size:.72rem;}
 
 <!-- FASE 2 -->
 <div class="card">
-  <h2>Fase 2 — Combinazione + checksum + mutua informazione <span class="badge">NUOVO: modalità di combinazione</span></h2>
+  <h2>Fase 2 — Combinazione + conteggio degli uni + mutua informazione <span class="badge">NUOVO: modalità di combinazione</span></h2>
   <div class="row">
     <label style="font-size:.82rem;">Modalità:
       <select id="combineModeSelect">
@@ -454,14 +460,15 @@ function mcvHmin(bits){
 }
 function markovHmin(bits){
   if(bits.length<2) return mcvHmin(bits);
-  const trans={"00":0,"01":0,"10":0,"11":0};
-  for(let i=0;i<bits.length-1;i++) trans[""+bits[i]+bits[i+1]]++;
-  const totals=[trans["00"]+trans["01"], trans["10"]+trans["11"]];
+  /* [OTTIMIZZATO — issue #6] Contatori numerici per coppia (indice 2*a+b) invece di una
+     stringa per ogni coppia di bit. Stessi conteggi, stesso risultato. */
+  const c=[0,0,0,0];
+  for(let i=0;i<bits.length-1;i++) c[2*bits[i]+bits[i+1]]++;
   let pUpperMax=0;
   for(const s of [0,1]){
-    if(totals[s]===0) continue;
-    const x = Math.max(trans[s+"0"], trans[s+"1"]);
-    const pUpper = clopperPearsonUpper(x, totals[s], 0.01);
+    const a=c[2*s], b=c[2*s+1], tot=a+b;
+    if(tot===0) continue;
+    const pUpper = clopperPearsonUpper(Math.max(a,b), tot, 0.01);
     pUpperMax = Math.max(pUpperMax, pUpper);
   }
   if(pUpperMax<=0) return 0;
@@ -481,7 +488,7 @@ function tTupleHmin(bits){
     // schema di tupleStats() già validato contro ea_non_iid in beta6, invece di
     // bits.slice(i,i+L).join(''): risultato identico (verificato nell'autotest), senza
     // allocare una stringa per ogni posizione del campione. Era il collo di bottiglia di
-    // combinedHmin: 13,4 s su 1.000.000 di bit, quasi tutti spesi qui.
+    // combinedHmin: 13,4 s su 1.000.000 di bit (misura riportata nell'issue #6, Node), quasi tutti spesi qui.
     // Oltre LRS_W_CAP=52 bit la chiave numerica non è più esatta (limite 2^53), quindi
     // per L più grandi si resta sul percorso a stringa.
     if(L<=LRS_W_CAP) return {count: tupleStats(sArr,L).maxC, total: n-L+1};
@@ -532,7 +539,36 @@ function tupleStats(s, W){
   }
   return { maxC, coll };
 }
+/* [NUOVO — issue #6] Conteggio esatto delle tuple di un insieme di posizioni candidate.
+   K[i] e' la chiave intera (esatta, <2^53) della tupla che inizia alla posizione candidata i.
+   Tabella a indirizzamento aperto su Float64Array/Int32Array: niente Map, niente stringhe. */
+function groupCount(K, L){
+  let size = 1; while(size < 2*L) size *= 2;
+  const tabKey = new Float64Array(size), tabCnt = new Int32Array(size), used = new Uint8Array(size);
+  const slot = new Int32Array(L), mask = size - 1;
+  for(let i = 0; i < L; i++){
+    const k = K[i];
+    const lo = k >>> 0, hi = Math.floor(k / 4294967296) >>> 0;
+    let h = Math.imul(lo ^ Math.imul(hi, 0x9E3779B1), 0x85EBCA6B);
+    h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35); h ^= h >>> 16;
+    let p = h & mask;
+    while(used[p] && tabKey[p] !== k) p = (p + 1) & mask;
+    if(!used[p]){ used[p] = 1; tabKey[p] = k; }
+    tabCnt[p]++; slot[i] = p;
+  }
+  let maxC = 1, coll = 0;   // esiste sempre almeno una tupla singola: maxC>=1
+  for(let p = 0; p < size; p++) if(used[p]){ const c = tabCnt[p]; if(c > maxC) maxC = c; if(c > 1) coll += c * (c - 1) / 2; }
+  return { maxC, coll, slot, tabCnt };
+}
+/* [NUOVO — issue #6, contatore] L'LRS e' un generatore: cede il controllo dopo ogni lunghezza
+   di tupla, cosi' la pagina non resta bloccata per l'intero stimatore (su 4 Mbit era un unico blocco
+   di circa 3 s). lrsHmin() sotto lo esegue fino in fondo: stesso codice, stesso risultato. */
 function lrsHmin(bits){
+  const g = lrsGen(bits); let r = g.next();
+  while(!r.done) r = g.next();
+  return r.value;
+}
+function* lrsGen(bits){
   // SP 800-90B 6.3.7: u = prima lunghezza per cui la tupla piu' frequente compare meno di 35 volte;
   // v = ultima lunghezza per cui qualche tupla compare almeno 2 volte; per ogni W in u..v la probabilita'
   // di collisione somma C(c,2)/C(n-W+1,2), radice W-esima; si prende il massimo e SOLO DOPO si somma
@@ -543,9 +579,33 @@ function lrsHmin(bits){
   if(n < 40) return null;
   const s = Uint8Array.from(bits);
   let u = 0, best = -1;
+  /* [OTTIMIZZATO — issue #6] Per W>20 si contano solo le posizioni la cui tupla di lunghezza
+     W-1 si ripete: una W-tupla ripetuta implica che anche il suo prefisso di lunghezza W-1 lo e'.
+     Stessi conteggi di tupleStats, esatti. Prima ogni W contava tutte le posizioni (~150 ms
+     su 1.000.000 di bit, per una ventina di valori di W). */
+  let pos = null, K = null, L = 0;
   for(let W = 1; W <= n - 1; W++){
     if(W > LRS_W_CAP){ lrsHmin.capped = true; return 0; }   // sequenza ripetitiva oltre il limite: valore prudente
-    const { maxC, coll } = tupleStats(s, W);
+    yield;                                                  // cede il controllo fra una lunghezza e la successiva
+    let maxC, coll;
+    if(W < 20){
+      ({ maxC, coll } = tupleStats(s, W));
+    } else {
+      const m = n - W + 1;
+      if(W === 20){ // seme: tutte le posizioni, con chiavi a 20 bit
+        L = m; pos = new Int32Array(m); K = new Float64Array(m);
+        for(let i = 0; i < m; i++){ let k = 0; for(let j = 0; j < W; j++) k = k * 2 + s[i + j]; K[i] = k; pos[i] = i; }
+      }
+      const g = groupCount(K, L);
+      maxC = g.maxC; coll = g.coll;
+      // Candidati per W+1: posizioni con tupla W ripetuta, ancora valide per W+1 (p <= n-W-1).
+      let nL = 0; const keep = new Uint8Array(L);
+      for(let i = 0; i < L; i++){ if(g.tabCnt[g.slot[i]] >= 2 && pos[i] <= n - W - 1){ keep[i] = 1; nL++; } }
+      const nPos = new Int32Array(nL), nK = new Float64Array(nL);
+      let t = 0;
+      for(let i = 0; i < L; i++) if(keep[i]){ nPos[t] = pos[i]; nK[t] = K[i] * 2 + s[pos[i] + W]; t++; }
+      pos = nPos; K = nK; L = nL;
+    }
     if(u === 0){ if(maxC < 35) u = W; else continue; }
     else if(maxC < 2) break;
     const tot = n - W + 1;
@@ -611,6 +671,10 @@ function compressionHmin(bits){
     for(let t = 1; t <= nblk; t++){
       if(t > d) acc += z * z * S + LOG[t] * z * w;
       S += LOG[t] * w; w *= r;
+      /* [OTTIMIZZATO — issue #6] Sotto 1e-280 il peso w e' ormai sotto l'ultimo bit di S e di acc:
+         azzerarlo non cambia il risultato, ma evita i numeri subnormali, che su CPU sono molto
+         piu' lenti (G viene chiamata ~160 volte su ~166.000 blocchi). */
+      if(w < 1e-280) w = 0;
     }
     return acc / N;
   }
@@ -622,6 +686,132 @@ function compressionHmin(bits){
     p = (lo + hi) / 2;
   }
   return -Math.log2(p) / b;
+}
+/* [NUOVO — issue #6, parte b] Stessa misura di combinedHmin(), ma cede il controllo alla UI
+   fra uno stimatore e l'altro e scrive nello stato quale stimatore sta girando. Non cambia
+   i numeri: usa le stesse funzioni nello stesso ordine. Le chiamate di autotest e di
+   confronto restano sincrone (sono piccole e devono valutare il risultato subito). */
+const cedi = () => new Promise(r => setTimeout(r, 0));
+let calcoloInCorso = false;
+/* [NUOVO — issue #6, contatore] Il contatore in secondi si aggiorna con un timer a 100 ms: avanza
+   solo se il browser risponde. Durante un singolo stimatore (es. LRS su 4 Mbit, circa 3 s) il
+   contatore resta fermo per quel tempo: e' il segnale onesto del blocco residuo. */
+let calcTimer = null, calcT0 = 0, calcEtichetta = '';
+function calcInizia(etichetta){
+  calcEtichetta = etichetta; calcT0 = performance.now();
+  const el = document.getElementById('calcIndicator');
+  const aggiorna = () => {
+    if(el){ el.style.display = 'block';
+      el.textContent = `${calcEtichetta} \u2014 ${((performance.now() - calcT0) / 1000).toFixed(1).replace('.', ',')} s`; }
+  };
+  aggiorna();
+  clearInterval(calcTimer); calcTimer = setInterval(aggiorna, 100);
+}
+function calcAggiorna(etichetta){ calcEtichetta = etichetta; }
+function calcFinisce(){
+  clearInterval(calcTimer); calcTimer = null;
+  const el = document.getElementById('calcIndicator');
+  if(el){ el.style.display = 'none'; el.textContent = ''; }
+}
+function occupato(statusEl){
+  if(!calcoloInCorso) return false;
+  if(statusEl){ statusEl.className='status neutral'; statusEl.textContent="Un'altra stima è in corso: attendi che finisca, poi riprova."; }
+  return true;
+}
+/* Stima degli stimatori in un Web Worker: la pagina resta reattiva (beta7).
+   Il codice del Worker e' lo stesso blocco del nucleo (da logGammaLocal a HEALTH TEST), letto dal DOM: nessuna copia in piu'. */
+function estimatorWorkerSource(){
+  const t = document.getElementById('core-script').textContent;
+  const a = t.indexOf('function logGammaLocal');
+  const b = t.indexOf('/* ============================== HEALTH TEST ' + 'RETROSPETTIVI');
+  return t.slice(a, b) + `
+self.onmessage = function(e){
+  try{
+    const bits = Array.from(e.data.bits);
+    const passi = [
+      ['MCV', () => mcvHmin(bits)],
+      ['Markov', () => markovHmin(bits)],
+      ['t-Tuple', () => tTupleHmin(bits)],
+      ['LRS', () => lrsHmin(bits)],
+      ['Collisione', () => collisionHmin(bits)],
+      ['Compressione', () => compressionHmin(bits)],
+    ];
+    const out = {};
+    for(let k = 0; k < passi.length; k++){
+      self.postMessage({type:'progress', k:k, n:passi.length, nome:passi[k][0]});
+      out[passi[k][0]] = passi[k][1]();
+    }
+    const lrsCapped = !!lrsHmin.capped;
+    const vals = [out['MCV'], out['Markov']];
+    if(out['t-Tuple'] !== null) vals.push(out['t-Tuple']);
+    if(out['LRS'] !== null) vals.push(out['LRS']);
+    if(out['Collisione'] !== null) vals.push(out['Collisione']);
+    if(out['Compressione'] !== null) vals.push(out['Compressione']);
+    self.postMessage({type:'done', result:{ hmin: Math.min(...vals), detail:{ mcv:vals[0], markov:vals[1], tTuple:out['t-Tuple'], lrs:out['LRS'], lrsCapped:lrsCapped, collision:out['Collisione'], compression:out['Compressione'] } }});
+  }catch(err){ self.postMessage({type:'error', msg: String(err && err.message || err)}); }
+};`;
+}
+function combinedHminWorker(bits, statusEl){
+  return new Promise((resolve, reject) => {
+    let w;
+    try{
+      const blob = new Blob([estimatorWorkerSource()], {type:'text/javascript'});
+      w = new Worker(URL.createObjectURL(blob));
+    }catch(err){ reject(err); return; }
+    w.onmessage = (e) => {
+      const d = e.data;
+      if(d.type === 'progress'){
+        if(statusEl) statusEl.textContent = `Stima in corso (Worker) su ${bits.length} bit: stimatore ${d.k+1}/${d.n} (${d.nome}). La pagina resta reattiva.`;
+        calcAggiorna(`${bits.length} bit · stimatore ${d.k+1}/${d.n} (${d.nome}, Worker)`);
+      } else if(d.type === 'done'){ w.terminate(); resolve(d.result); }
+      else if(d.type === 'error'){ w.terminate(); reject(new Error(d.msg)); }
+    };
+    w.onerror = (err) => { w.terminate(); reject(err); };
+    const copia = new Uint8Array(bits);
+    w.postMessage({bits: copia}, [copia.buffer]);
+  });
+}
+async function combinedHminAuto(bits, statusEl){
+  let res;
+  try{ res = await combinedHminWorker(bits, statusEl); }
+  catch(err){
+    console.warn('Worker non disponibile, uso il thread principale:', err);
+    return combinedHminAsync(bits, statusEl);
+  }
+  return res;
+}
+async function combinedHminAsync(bits, statusEl){
+  const passi = [
+    ['MCV', () => mcvHmin(bits)],
+    ['Markov', () => markovHmin(bits)],
+    ['t-Tuple', () => tTupleHmin(bits)],
+    ['LRS', () => { const v = lrsHmin(bits); risultatoLrsCapped = !!lrsHmin.capped; return v; }],
+    ['Collisione', () => collisionHmin(bits)],
+    ['Compressione', () => compressionHmin(bits)],
+  ];
+  let risultatoLrsCapped = false;
+  const out = {};
+  for(let k = 0; k < passi.length; k++){
+    if(statusEl) statusEl.textContent = `Stima in corso su ${bits.length} bit: stimatore ${k+1}/${passi.length} (${passi[k][0]}). La pagina resta reattiva tra uno stimatore e l'altro.`;
+    calcAggiorna(`${bits.length} bit · stimatore ${k+1}/${passi.length} (${passi[k][0]})`);
+    await cedi();
+    if(passi[k][0] === 'LRS'){
+      const g = lrsGen(bits); let r;
+      do {
+        r = g.next();
+        if(!r.done){ await cedi(); calcAggiorna(`${bits.length} bit · stimatore ${k+1}/${passi.length} (LRS, in corso)`); }
+      } while(!r.done);
+      out['LRS'] = r.value; risultatoLrsCapped = !!lrsHmin.capped;
+    } else {
+      out[passi[k][0]] = passi[k][1]();
+    }
+  }
+  const vals = [out['MCV'], out['Markov']];
+  if(out['t-Tuple'] !== null) vals.push(out['t-Tuple']);
+  if(out['LRS'] !== null) vals.push(out['LRS']);
+  if(out['Collisione'] !== null) vals.push(out['Collisione']);
+  if(out['Compressione'] !== null) vals.push(out['Compressione']);
+  return { hmin: Math.min(...vals), detail: { mcv:vals[0], markov:vals[1], tTuple:out['t-Tuple'], lrs:out['LRS'], lrsCapped:risultatoLrsCapped, collision:out['Collisione'], compression:out['Compressione'] } };
 }
 function combinedHmin(bits){
   const vals = [mcvHmin(bits), markovHmin(bits)];
@@ -1169,8 +1359,8 @@ const MIN_PASTE_BITS = 256;
 
 /* ============================== [NUOVO — feature 7] ASSISTENTE CSV/SENSORE → LSB ==============================
    Estrae bit dai LSB di letture numeriche incollate (CSV/whitespace), con
-   selezione automatica dei parametri via grid-search su un punteggio euristico
-   (bilanciamento + Shannon + bassa autocorrelazione + lunghezza). NON genera
+   configurazione scelta dall'utente: la selezione automatica basata su un punteggio
+   e' stata rimossa in beta7 (issue #5). NON genera
    né simula entropia: estrae solo bit realmente presenti nei numeri forniti
    dall'utente. La validazione rigorosa (Clopper-Pearson) avviene comunque in
    Fase 1 dopo l'invio, come per qualunque altra sorgente. */
@@ -1215,27 +1405,13 @@ function csvExtractWith(rows, cfg){
     // [NUOVO] Oltre 2^53 un double non rappresenta piu' tutti gli interi: i bit meno
     // significativi del valore scalato non vengono dal sensore, sono il residuo
     // dell'arrotondamento in virgola mobile. Contarli come entropia significherebbe
-    // accreditare bit a un artefatto del formato numerico, quindi il valore si scarta e
-    // la configurazione viene penalizzata nella scelta automatica.
+    // accreditare bit a un artefatto del formato numerico, quindi il valore si scarta.
     if(!Number.isSafeInteger(iv)){ unsafe++; continue; }
     if(cfg.skipZero&&iv===0){ skipped++; continue; }
     for(const b of csvExtractLsbBits(iv, cfg.nLsb)) allBits.push(b);
     used++;
   }
   return {bits:allBits, used, skipped, unsafe, cfg};
-}
-function csvScoreBits(bits){
-  const n=bits.length;
-  if(n<16) return -1e9;
-  let ones=0; for(let i=0;i<n;i++) if(bits[i]) ones++;
-  const p1=ones/n;
-  const balance=1-Math.abs(p1-0.5)*2;
-  let H=0; if(p1>0&&p1<1) H=-(p1*Math.log2(p1)+(1-p1)*Math.log2(1-p1));
-  let match=0; for(let i=0;i<n-1;i++) if(bits[i]===bits[i+1]) match++;
-  const ac=match/(n-1);
-  const acScore=1-Math.abs(ac-0.5)*2;
-  const lenScore=Math.log2(Math.min(n,4096))/12;
-  return balance*2+H*2+acScore*1.5+lenScore;
 }
 function csvAnalyzeStructure(rows){
   const flat=csvFlatten(rows,false);
@@ -1259,31 +1435,6 @@ function csvAnalyzeStructure(rows){
   }
   return {n, cols, hasFloat, maxFracDigits, maxAbs, corr};
 }
-function csvAutoChoose(rows){
-  const st=csvAnalyzeStructure(rows);
-  const scales=st.hasFloat
-    ? (st.maxFracDigits>=9?["1e12","1e9","1e6"]:st.maxFracDigits>=6?["1e9","1e6","1e3"]:["1e6","1e3","1e9"])
-    : ["raw","1e3"];
-  const modes=st.corr>0.3?["diff","absdiff","direct"]:["direct","diff"];
-  const lsbList=st.hasFloat?[4,2,8,1]:[8,4,16,2];
-  const inters=st.cols>=2?[true,false]:[false];
-  let best=null, bestScore=-1e12, tried=0;
-  for(const scale of scales) for(const mode of modes) for(const nLsb of lsbList) for(const interleave of inters){
-    const cfg={scale, mode, nLsb, interleave, skipZero:true};
-    const r=csvExtractWith(rows, cfg);
-    // Una configurazione che supera 2^53 viene scelta solo se non ce n'e' nessuna sana.
-    const sc=csvScoreBits(r.bits) - (r.unsafe>0 ? 1e6 : 0);
-    tried++;
-    if(sc>bestScore){ bestScore=sc; best=r; }
-  }
-  const why=[];
-  why.push(st.hasFloat?"Rilevati float → scala calibrata sulla parte decimale":"Valori interi → scala grezza/lieve");
-  why.push(st.cols>=2?"Più colonne rilevate → valutato anche l'interleave":"Una sola colonna");
-  why.push(st.corr>0.3?"Campioni consecutivi correlati (tipico dei sensori) → preferita la differenza":"Bassa correlazione → valore diretto competitivo");
-  why.push("Scelta finale: punteggio massimo (bilanciamento 0/1 + Shannon + bassa autocorrelazione + lunghezza)");
-  return {result:best, why:why.join(". "), structure:st, candidates:tried};
-}
-
 let csvResultBits = null;
 document.getElementById('btnCsvAnalyze').addEventListener('click', ()=>{
   const csvStatus = document.getElementById('csvStatus');
@@ -1295,11 +1446,23 @@ document.getElementById('btnCsvAnalyze').addEventListener('click', ()=>{
     csvStatus.textContent='Nessun numero valido trovato.';
     return;
   }
-  const auto = csvAutoChoose(rows);
-  const result = auto.result;
+  const colonne = csvAnalyzeStructure(rows);
+  const cfg = {
+    scale: document.getElementById('csvScaleSelect').value,
+    mode: document.getElementById('csvModeSelect').value,
+    nLsb: parseInt(document.getElementById('csvLsbSelect').value,10),
+    interleave: document.getElementById('csvInterleaveSelect').value === '1' && colonne.cols>=2,
+    skipZero: true
+  };
+  const result = csvExtractWith(rows, cfg);
   if(!result || result.bits.length < 1){
     csvStatus.className='status fail';
-    csvStatus.textContent='Nessun bit estratto dai dati forniti (troppo pochi valori utili dopo lo scarto degli zeri).';
+    /* [CORRETTO — issue #5, prova con scala 1e12] Il messaggio attribuiva sempre il vuoto agli zeri.
+       Se il vuoto dipende dallo scarto oltre 2^53 lo dice, perche' la causa e' la scala scelta. */
+    const scartati = result ? result.unsafe : 0;
+    csvStatus.textContent = scartati > 0
+      ? `Nessun bit estratto: ${scartati} valori scartati perche' oltre 2^53 dopo la scala ${cfg.scale}. Scegli una scala piu' piccola.`
+      : 'Nessun bit estratto dai dati forniti (troppo pochi valori utili dopo lo scarto degli zeri).';
     return;
   }
   csvResultBits = result.bits;
@@ -1307,11 +1470,11 @@ document.getElementById('btnCsvAnalyze').addEventListener('click', ()=>{
   let ones=0; for(const b of result.bits) if(b) ones++;
   csvStatus.className='status ok';
   csvStatus.textContent =
-    `Parametri scelti: ${result.cfg.nLsb} LSB/valore, scala ${result.cfg.scale}, modo ${result.cfg.mode}, interleave ${result.cfg.interleave?'sì':'no'} (${auto.candidates} configurazioni provate).\n${auto.why}\n` +
+    `Configurazione scelta da te: ${result.cfg.nLsb} LSB/valore, scala ${result.cfg.scale}, modo ${result.cfg.mode}, interleave ${result.cfg.interleave?'sì':'no'}.\n` +
     `Valori usati: ${result.used}, saltati (zero): ${result.skipped}. Bit estratti: ${result.bits.length} (${(ones/result.bits.length*100).toFixed(1)}% di 1).\n` +
     `Primi 64 bit: ${bitStr.slice(0,64)}${bitStr.length>64?'…':''}` +
     (result.unsafe>0 ? `\n⚠ ${result.unsafe} valori scartati perche' oltre 2^53 dopo la scala: i loro bit bassi sarebbero stati arrotondamenti del double, non dati del sensore.` : '') +
-    `\n\n⚠ La H_min misura QUESTI NUMERI, non la loro origine fisica. Se i dati vengono da un processo deterministico (una rampa, una sinusoide, un sensore fermo) nessuno stimatore se ne accorgera': una sinusoide pura supera tutti i controlli di questa pagina con H_min≈0,50. La scelta automatica massimizza un punteggio di apparenza di casualita' su decine di configurazioni, quindi la stima che segue e' ottimistica per costruzione. L'imprevedibilita' deve venire dal fenomeno fisico, e di quella rispondi tu.`;
+    `\n\n⚠ La H_min misura QUESTI NUMERI, non la loro origine fisica. Se i dati vengono da un processo deterministico (una rampa, una sinusoide, un sensore fermo) nessuno stimatore se ne accorgera': una sinusoide pura supera tutti i controlli di questa pagina con H_min≈0,50. L'imprevedibilita' deve venire dal fenomeno fisico, e di quella rispondi tu.`;
   log(`Assistente CSV: estratti ${result.bits.length} bit (${result.cfg.nLsb} LSB, scala ${result.cfg.scale}, modo ${result.cfg.mode}, interleave ${result.cfg.interleave})`);
   document.getElementById('btnCsvSend').disabled = false;
 });
@@ -1319,7 +1482,7 @@ document.getElementById('btnCsvSend').addEventListener('click', ()=>{
   if(!csvResultBits) return;
   const idx = parseInt(document.getElementById('csvTargetSelect').value,10);
   document.getElementById(`pasteInput-${idx}`).value = csvResultBits.join('');
-  analyzeSource(idx);
+  analyzeSource(idx, true);
   const csvStatus = document.getElementById('csvStatus');
   csvStatus.textContent += `\n→ Inviati a Sorgente ${idx+1} e analizzati (vedi il pannello della sorgente per la stima rigorosa di H_min).`;
   log(`Assistente CSV: ${csvResultBits.length} bit inviati a Sorgente ${idx+1}.`);
@@ -1372,9 +1535,10 @@ function clearSource(idx){
   statusEl.textContent='in attesa di bit grezzi…';
   log(`Sorgente ${idx+1} svuotata.`);
 }
-function analyzeSource(idx){
+async function analyzeSource(idx, fromCsv=false){
   const statusEl = document.getElementById(`srcStatus-${idx}`);
   if(!requireSelfTests(statusEl)) return;
+  if(occupato(statusEl)) return;
   invalidateDownstream(`sorgente ${idx+1} rianalizzata`);
   const raw = document.getElementById(`pasteInput-${idx}`).value.trim();
   if(!raw){
@@ -1411,14 +1575,18 @@ function analyzeSource(idx){
     statusEl.textContent=`Servono almeno ${MIN_PASTE_BITS} bit per una stima H_min sensata, forniti ${bits.length}.`;
     return;
   }
-  const {hmin: hMin, detail} = combinedHmin(bits);
+  calcoloInCorso = true; calcInizia(`Sorgente ${idx+1}`);
+  let est;
+  try{ est = await combinedHminAuto(bits, statusEl); }
+  finally{ calcoloInCorso = false; calcFinisce(); }
+  const {hmin: hMin, detail} = est;
   state.sources[idx]=bits;
   state.hmin[idx]=hMin;
   const rct = repetitionCountTest(bits, hMin);
   const apt = adaptiveProportionTest(bits, hMin);
   state.healthFailed[idx] = rct.failed || (apt && apt.failed);
   const level = levelForHmin(hMin);
-  const excludedTxt = hMin<HMIN_EXCLUDE ? "\n⚠ ESCLUSA (H_min < 0.3)" : (state.healthFailed[idx] ? "\n⚠ ESCLUSA (health test RCT/APT fallito)" : "");
+  const excludedTxt = hMin<HMIN_EXCLUDE ? "\n⚠ ESCLUSA (H_min < 0.3)" : (state.healthFailed[idx] ? "\n⚠ ESCLUSA per allarme RCT/APT: da verificare (sulle sorgenti lunghe l'RCT può dare falsi allarmi, vedi README)" : "");
   const detailTxt = `MCV=${detail.mcv.toFixed(4)} Markov=${detail.markov.toFixed(4)}` +
     (detail.tTuple!==null ? ` t-Tuple=${detail.tTuple.toFixed(4)}` : ' t-Tuple=n/a') +
     (detail.lrs!==null ? ` LRS=${detail.lrs.toFixed(4)}${detail.lrsCapped?' (ripetizione oltre '+LRS_W_CAP+' bit: valore prudente)':''}` : ' LRS=n/a') +
@@ -1429,18 +1597,23 @@ function analyzeSource(idx){
   // prescrive SP 800-90B; qui la soglia e' 256 bit. Non alzo la soglia, romperebbe l'uso
   // didattico dichiarato, ma la stima non puo' essere presentata come se fosse solida.
   const campioniTxt = bits.length < NIST_MIN_CAMPIONI
-    ? `\n\u26a0 Campioni: ${bits.length} (SP 800-90B ne richiede almeno ${NIST_MIN_CAMPIONI.toLocaleString('it-IT')}): H_min qui e' INDICATIVA. Su campioni corti gli stimatori sbagliano in entrambe le direzioni: su bit da CSPRNG danno 0,37 a 256 bit e 0,83 a un milione.`
+    ? `\n\u26a0 Campioni: ${bits.length} (SP 800-90B ne richiede almeno ${NIST_MIN_CAMPIONI.toLocaleString('it-IT')}): H_min qui e' INDICATIVA. Su campioni corti gli stimatori sbagliano in entrambe le direzioni: su bit da CSPRNG la mediana e' circa 0,43 a 256 bit (tra 0,24 e 0,62 su 300 prove) e tra 0,83 e 0,86 a un milione (5 prove).`
     : '';
   const rctTxt = `RCT: run max=${rct.maxRun} (soglia ${rct.cutoff}) ${rct.failed?'⚠ FALLITO':'OK'}`;
   const aptTxt = apt ? `APT: conteggio max=${apt.maxCount}/${apt.windowsChecked} finestre (soglia ${apt.cutoff}) ${apt.failed?'⚠ FALLITO':'OK'}` : 'APT: n/a (servono ≥1024 bit)';
   statusEl.className = (rct.failed || (apt&&apt.failed)) ? 'status fail' : `status ${level}`;
-  statusEl.textContent = `bit=${bits.length} H_min=${hMin.toFixed(4)}${excludedTxt}${campioniTxt}\n${detailTxt}\n${rctTxt}\n${aptTxt}`;
+  const csvTxt = fromCsv ? "\n⚠ Bit prodotti dall'assistente CSV: H_min misura questi numeri, non la loro origine fisica. Se la sorgente è deterministica nessuno stimatore se ne accorgerà." : '';
+  statusEl.textContent = `bit=${bits.length} H_min=${hMin.toFixed(4)}${excludedTxt}${campioniTxt}\n${detailTxt}\n${rctTxt}\n${aptTxt}${csvTxt}`;
   log(`Sorgente ${idx+1} analizzata: ${bits.length} bit, H_min=${hMin.toFixed(4)}`);
 }
 
 /* ============================== FASE 2 (con combinazione multi-sorgente) ============================== */
 document.getElementById('btnPhase2').addEventListener('click', async ()=>{
   if(!requireSelfTests(document.getElementById('p2status'))) return;
+  if(occupato(document.getElementById('p2status'))) return;
+  /* [NUOVO — issue #6] Rieseguire la Fase 2 invalida le fasi 3-5 e gli output precedenti:
+     prima restavano attivi con i bit della Fase 2 vecchia. */
+  invalidateDownstream('Fase 2 rieseguita');
   const active = [];
   let sumH = 0;
   let entropyBits = 0;
@@ -1457,7 +1630,7 @@ document.getElementById('btnPhase2').addEventListener('click', async ()=>{
   if(active.length===0){
     p2.className='status fail';
     p2.textContent='Nessuna sorgente valida campionata. Eseguire la Fase 1.' +
-      (excludedForHealth.length ? `\n(${excludedForHealth.join(', ')} esclusa/e per health test RCT/APT fallito)` : '');
+      (excludedForHealth.length ? `\n(${excludedForHealth.join(', ')} esclusa/e per allarme RCT/APT, da verificare)` : '');
     return;
   }
 
@@ -1479,7 +1652,7 @@ document.getElementById('btnPhase2').addEventListener('click', async ()=>{
 
   p2.className='status neutral';
   p2.textContent = `Fase 2: ${concat.length} bit combinati, rivalidazione del flusso combinato in corso... ` +
-    (concat.length < 1000000 ? `(battery completa, 6 stimatori)` : `(battery ridotta, solo LRS: sopra il milione di bit la completa richiederebbe decine di secondi)`);
+    (concat.length < 1000000 ? `(battery completa, 6 stimatori)` : `(battery ridotta, solo LRS: sopra il milione di bit, per soglia fissata dal progetto, la battery completa non viene eseguita)`);
   await yieldToUI();
 
   const n1 = onesCountDirect(concat);
@@ -1500,7 +1673,9 @@ document.getElementById('btnPhase2').addEventListener('click', async ()=>{
      e il budget risultava 5,3 volte l'entropia realmente presente. Ora gli stimatori
      girano anche sul flusso combinato e il budget e' il minimo fra le due contabilita'. */
   /* [COMPROMESSO concordato nella #8] La rivalidazione completa costa: combinedHmin() su
-     4 Mbit impiega circa 47 s. Sotto la soglia si esegue la battery completa; sopra, il
+     4 Mbit impiega circa 4,4 s in Chromium headless (misura del 12/10/2026, sincrona; il
+     numero precedente di 47 s era superato). La soglia di 1.000.000 bit non e' piu' giustificata
+     dal tempo: resta quella decisa dall'utente. Sotto la soglia si esegue la battery completa; sopra, il
      solo LRS, che e' lo stimatore che intercetta ripetizioni e dipendenze fra sorgenti
      (verificato: su una sorgente duplicata e su due sorgenti identiche in XOR l'LRS da' 0
      con lrsCapped=true, mentre su un flusso sano da' 0,83 senza cap).
@@ -1516,7 +1691,10 @@ document.getElementById('btnPhase2').addEventListener('click', async ()=>{
   const batteryCompleta = concat.length < BATTERY_COMPLETA_MAX_BIT;
   let combinedHminVal, combinedCapped, batteryNota;
   if(batteryCompleta){
-    const est = combinedHmin(concat);
+    calcoloInCorso = true; calcInizia('Fase 2 · battery completa');
+    let est;
+    try{ est = await combinedHminAuto(concat, p2); }
+    finally{ calcoloInCorso = false; calcFinisce(); }
     combinedHminVal = est.hmin;
     combinedCapped = est.detail.lrsCapped;
     batteryNota = `completa, 6 stimatori (${concat.length} bit, sotto la soglia di ${BATTERY_COMPLETA_MAX_BIT})`;
@@ -1565,7 +1743,7 @@ document.getElementById('btnPhase2').addEventListener('click', async ()=>{
   p2.className='status ok';
   p2.textContent = `OK — ${concat.length} bit combinati (modalità: ${combineMode}) da ${active.length} sorgent${active.length>1?'i':'e'}.\nΣ H_min (tasso, informativo) = ${sumH.toFixed(4)}\nH_min misurata SUL FLUSSO COMBINATO = ${combinedHminVal.toFixed(4)} → ${entropyBitsCombined.toFixed(1)} bit  [battery ${batteryNota}]\nContabilità dalle sorgenti (${budgetNote}) = ${budgetFromSources.toFixed(1)} bit\nEntropia assoluta usata per il bound LHL = ${entropyBitsForLHL.toFixed(1)} bit (vincolo: ${vincolo})\nConteggio degli uni per due vie indipendenti: concordi\n` +
     (active.length>1 ? (warnMI.length ? `⚠ WARN correlazione (multi-lag ±8): ${warnMI.join(', ')}` : 'Correlazione multi-lag (±8): nessun warning') : '(sorgente singola)') +
-    (excludedForHealth.length ? `\n(${excludedForHealth.join(', ')} esclusa/e per health test RCT/APT fallito)` : '');
+    (excludedForHealth.length ? `\n(${excludedForHealth.join(', ')} esclusa/e per allarme RCT/APT, da verificare)` : '');
   log(`FASE 2 OK: ${concat.length} bit, modalità=${combineMode}, sorgenti=${active.length}`);
   document.getElementById('btnPhase3').disabled=false;
 });
@@ -1715,6 +1893,7 @@ document.getElementById('btnPhase4').addEventListener('click', async ()=>{
 
 /* ============================== FASE 5 ============================== */
 document.getElementById('btnPhase5').addEventListener('click', ()=>{
+  if(!requireSelfTests(document.getElementById('p5extra'))) return;
   const pre = state.concatBits, post = state.finalOut;
   // [AGGIORNATO — v2.0.0-beta3] Serial e ApproxEntropy sostituiti dalle versioni
   // complete conformi NIST (estensione ciclica). Aggiunti Cumulative Sums
@@ -1754,6 +1933,7 @@ document.getElementById('btnPhase5').addEventListener('click', ()=>{
 
 /* ============================== OUTPUT FINALE ============================== */
 document.getElementById('btnFinal').addEventListener('click', async ()=>{
+  if(!requireSelfTests(document.getElementById('finalArea'))) return;
   const bytes = bytesFromBits(state.finalOut);
   const h1 = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
   const h2 = new Uint8Array(await crypto.subtle.digest('SHA-256', h1));
@@ -1776,6 +1956,7 @@ document.getElementById('btnFinal').addEventListener('click', async ()=>{
 
 /* ============================== SHAKE256 ============================== */
 document.getElementById('btnShake').addEventListener('click', ()=>{
+  if(!requireSelfTests(document.getElementById('shakeArea'))) return;
   const bits = parseInt(document.getElementById('shakeBitsInput').value,10) || 256;
   const bytes = bytesFromBits(state.finalOut);
   const out = shake256(bytes, bits);

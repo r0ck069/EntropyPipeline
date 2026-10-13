@@ -1,6 +1,6 @@
 # Entropy Extraction Pipeline — Peres + Toeplitz
 
-> ⚠ **v2.0.0-beta6 — BETA pubblicata su GitHub.** Contiene funzionalità nuove
+> ⚠ **v2.0.0-beta7 — in preparazione, non ancora pubblicata su GitHub.** Contiene funzionalità nuove
 > non ancora sottoposte ad audit indipendente da terzi (sono state però verificate con una
 > suite di test rigorosa e reale — vedi `CHANGELOG.md`). Vedi anche `SECURITY-NOTES.md` per
 > i principi di design. Non usare per nulla che conti davvero finché non è stata verificata
@@ -39,6 +39,7 @@ contano davvero.
 
 - [Perché esiste](#perché-esiste)
 - [Funzionalità](#funzionalità)
+- [Novità della v2.0.0-beta7](#novità-della-v200-beta7)
 - [Novità della v2.0.0-beta6](#novità-della-v200-beta6)
 - [Novità della serie v2.0.0 fino alla beta3](#novità-della-serie-v200-fino-alla-beta3)
 - [Come si usa](#come-si-usa)
@@ -65,9 +66,9 @@ formati accettati (binario, esadecimale — con parsing tollerante a prefissi "0
 separatori vari — e **NUOVO** lista di byte decimali/esadecimali separati da spazio o
 virgola). Il tool non genera né simula mai entropia lato browser.
 - **NUOVO — Assistente "dati numerici (sensore/CSV) → bit grezzi"**: incolla letture
-numeriche (accelerometro, giroscopio, CSV) e lo strumento sceglie automaticamente scala,
-LSB, modalità e interleave tramite grid-search su un punteggio di qualità, poi invia i
-bit a una delle 4 sorgenti per la stima rigorosa standard.
+numeriche (accelerometro, giroscopio, CSV). Scala, numero di LSB, modalità e interleave li
+scegli tu: lo strumento non sceglie la configurazione con un punteggio (dalla beta7). Poi
+invia i bit a una delle 4 sorgenti per la stima rigorosa standard.
 - **NUOVO — Pulsante "Demo sbilanciata (test)"** per verificare in prima persona, con
 CSPRNG reale, come reagisce il gate di esclusione H_min<0.3.
 - **Modalità di combinazione esplicita**: Concatenazione (default, additiva), XOR o
@@ -112,6 +113,36 @@ auto-consistenza statistica, tetto di emissione, stimatori LRS/Collisione/Compre
 contro i valori ufficiali di `ea_non_iid`. Se qualcosa fallisse qui, è una
 regressione nel codice.
 
+## Novità della v2.0.0-beta7
+
+- **Assistente CSV, configurazione scelta da te (issue #5):** la scelta automatica basata su
+  un punteggio è stata rimossa. Una sinusoide pura, che ha entropia zero, superava tutti i
+  controlli con una H_min di circa 0,50: per questo i bit prodotti dall'assistente portano
+  ora un avviso in Fase 1.
+- **Stato coerente (issue #6):** rianalizzare o svuotare una sorgente, oppure rieseguire la
+  Fase 2, azzera le fasi a valle e disabilita le Fasi 3-5 fino a una nuova esecuzione della Fase 2.
+- **Stima della battery della Fase 2 in un Web Worker (issue #6):** la rivalidazione del flusso combinato gira in un Web Worker, e durante la stima compare lo stimatore in corso. Se il Worker non è disponibile, la stima passa alla versione che cede il controllo alla pagina fra uno stimatore e l'altro (per l'LRS, fra una lunghezza di tupla e la successiva). Misura di reattività con il Worker: una sola prova in Chrome, ritardo massimo 1006 ms su 1.000.000 di bit; il tempo di risposta ai clic non è stato misurato.
+- **Stimatori più rapidi (issue #6):** su 1.000.000 di bit, in Chromium headless, beta6 → attuale (misure precedenti, non ripetute nel ramo beta7): t-Tuple 5,8 s → 0,04 s; LRS 4,1 s → 0,36 s; Compressione 2,6 s → 0,05 s; flusso combinato 12,4 s → 0,5 s (minimo di due esecuzioni per stimatore, una per il combinato). Confronto dei valori restituiti con la beta6 sugli stessi dati: non eseguito.
+- **Blocco dei gestori:** Fasi 1-5, output finale e SHAKE256 non producono output se l'autotest
+  è fallito, anche con i pulsanti riabilitati a mano.
+- **Requisiti sulle sorgenti (issue #4):** soglia di 256 bit confermata, deviazione dallo
+  standard NIST SP 800-90B §3.1.1 dichiarata nella documentazione.
+- **Flusso combinato rivalidato (seconda e terza serie):** il budget per il bound LHL è il minimo
+  fra la contabilità per sorgente e la H_min misurata sui bit combinati. Sotto 1.000.000 di bit si
+  esegue la battery completa (sei stimatori); sopra, solo l'LRS. La Fase 2 si ferma se la H_min
+  combinata scende sotto 0,3. Il budget non supera mai quello della versione precedente.
+- **Seme Toeplitz manuale validato:** rifiutati i semi costanti, periodici (periodo fino a 32) e con
+  H_min sotto 0,3; avviso sotto 0,8.
+- **Output finale con forza di sicurezza dichiarata:** l'etichetta riporta al più *m* bit (quelli
+  della Fase 4) e avvisa quando *m* è sotto 256.
+- **Test statistici corretti:** Longest Run con 3 gradi di libertà (falsi FAIL da 2,50% a circa 1%);
+  Adaptive Proportion Test con finestra di 1024 campioni per sorgenti binarie; `erfc` verificata
+  contro valori noti.
+- **Avviso in Fase 1:** sotto 1.000.000 di campioni per sorgente, come richiede SP 800-90B; la soglia
+  d'ingresso di 256 bit non cambia.
+- **Autotest e blocco:** un autotest fallito disabilita le Fasi 1-5 e gli output anche con i pulsanti
+  riabilitati a mano. Dettagli e misure: `CHANGELOG.md`, voce v2.0.0-beta7.
+
 ## Novità della v2.0.0-beta6
 
 - **v2.0.0-beta6 (02/10/2026):** corretto lo stimatore LRS, che su bit casuali ideali dava
@@ -136,8 +167,7 @@ matematica indipendente eseguita sui 4 test NIST nuovi/aggiornati. In sintesi: m
 combinazione multi-sorgente, tetto di emissione conservativo, pipeline di confronto
 XOR-LFSR, hash di integrità, margine LHL selezionabile, demo sbilanciata, assistente
 CSV/sensore, parsing di input più tollerante, batteria NIST estesa a 8 test (7 delle 15
-procedure) conformi. Il nucleo matematico/crittografico storico (Peres, Toeplitz, SHA-256/SHAKE256,
-Clopper-Pearson) è **invariato** rispetto alla build 2026-09-11. Le note d'audit
+procedure) conformi. Nel diff registrato tra beta6 e beta7 le funzioni di Peres, SHA-256/SHAKE256 e Clopper-Pearson non risultano modificate; il confronto completo con la build 2026-09-11 non è stato eseguito, e Toeplitz non è incluso in questa affermazione. Le note d'audit
 dettagliate, prima incorporate nell'HTML, sono in `AUDIT-NOTES.md`; i principi di design
 trasversali sono in `SECURITY-NOTES.md`.
 
@@ -154,7 +184,7 @@ Istruzioni dettagliate passo-passo: [ISTRUZIONI.md](ISTRUZIONI.md).
 
 ```
 .
-├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta6 (unico file necessario per l'uso)
+├── entropy_pipeline.html  # Lo strumento — build v2.0.0-beta7 (unico file necessario per l'uso)
 ├── ISTRUZIONI.md                # Guida all'uso passo-passo
 ├── CHANGELOG.md                 # Cronologia dettagliata di tutte le build e i bug corretti
 ├── AUDIT-NOTES.md               # Dettaglio completo delle note d'audit (spostato fuori dall'HTML)
@@ -200,6 +230,11 @@ diversa potrebbero dare valori più bassi. Per un seme vero il numero di riferim
 quello di `ea_non_iid` sui bit effettivamente raccolti. La Compressione, da 6012 bit in su,
 è molto pessimista fino a circa 20.000 bit (pochi blocchi di test dopo i 1000 di
 inizializzazione): vedi `CHANGELOG.md`, voce beta6.
+- Health test RCT su sorgenti lunghe: l'RCT è applicato all'intera sorgente con α = 2⁻²⁰ per
+  campione, come nel testo NIST che lo descrive per il monitoraggio continuo. Su bit casuali ideali
+  produce falsi allarmi: 6,1% a 1.000.000 di bit (61 prove su 1000) e 23% a 4.000.000 di bit (46 su 200),
+  misure della riverifica del 12/10/2026 in Chromium/Node. Un allarme esclude la sorgente con il
+  messaggio «da verificare»: va letto come invito a ripetere l'acquisizione, non come prova di difetto.
 - I test statistici su un output di poche centinaia di bit hanno potenza limitata: un
 "PASS" è indicativo, non probante.
 - La batteria NIST SP 800-22 copre 7 delle 15 procedure ufficiali, in 8 test (Cumulative

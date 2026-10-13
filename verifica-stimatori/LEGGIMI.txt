@@ -1,5 +1,8 @@
-Verifica degli stimatori di min-entropia della pagina (v2.0.0-beta6)
+Verifica degli stimatori di min-entropia della pagina (v2.0.0-beta7)
 ====================================================================
+Rieseguita sulla beta7 il 13/10/2026: stessi risultati della beta6 (estimatori_check.js 2 su 2 su r603;
+validazione_90b.py 9 su 9 su r603, riferimento Python indipendente dalla pagina). Il marcatore di fine
+di estimatori_check.js è stato corretto (`function combinedHmin(`). Gli altri cinque flussi richiedono i WAV privati.
 Questa cartella contiene i controlli che confrontano LRS, Collisione e Compressione (SP 800-90B, dati binari,
 1 bit per campione) con l'output ufficiale di ea_non_iid, il programma del NIST compilato sul Raspberry Pi
 (dal sorgente NIST, il 24/09/2026; il commit esatto non e' registrato).  Gli output ufficiali con cui si confronta
@@ -36,6 +39,4 @@ Formule verificate sui dati (non quelle "a memoria"):
                probabilita' di collisione (somma C(c,2) / C(n-W+1,2)) con radice W-esima; massimo; poi margine 2,576
 
 Limiti: solo dati binari; la compressione richiede almeno 6012 bit; non validati i quattro predittori, MCV, Markov e t-Tuple.
-Licenza: il software NIST SP800-90B_EntropyAssessment e' distribuito dal NIST con un proprio avviso (uso, copia e modifica
-ammessi, con indicazione delle modifiche e riconoscimento del NIST come fonte). Il codice qui e' una riscrittura indipendente
-dalla norma; si cita il NIST come fonte.
+Licenza: il software NIST SP800-90B_EntropyAssessment è distribuito dal NIST con un proprio avviso (sezione License del README del repository usnistgov/SP800-90B_EntropyAssessment, letta il 13/10/2026 sul ramo master). Secondo quell'avviso il software si può usare, copiare e distribuire purché si conservi l'avviso intero; le versioni modificate devono dichiarare di essere state cambiate; il NIST va riconosciuto come fonte. Il NIST non fornisce garanzie e il software non è destinato a situazioni in cui un guasto possa causare danni a persone o cose. Il codice di questa cartella è una riscrittura indipendente, non una copia del software NIST.
