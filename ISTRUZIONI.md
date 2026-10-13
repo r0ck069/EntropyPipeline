@@ -30,12 +30,13 @@ per chiavi che contano davvero.
 ### Assistente opzionale — dati numerici → bit grezzi (prima di Fase 1)
 
 Incolla letture numeriche (accelerometro, giroscopio, CSV di sensori; spazi, virgole o tab
-come separatori). L'assistente **non genera entropia**: prova più combinazioni di scala,
-numero di LSB, modalità (valore diretto o differenza) e interleave fra colonne, tiene quella
-con il punteggio migliore (bilanciamento 0/1, Shannon, bassa autocorrelazione, lunghezza) ed
-estrae i bit meno significativi realmente presenti nei dati incollati. Scegli la sorgente di
-destinazione e premi "Invia bit alla sorgente scelta": i bit restano soggetti alla stessa
-stima di min-entropia di Fase 1.
+come separatori). L'assistente **non genera entropia** e **non sceglie la configurazione**:
+scala, numero di LSB, modalità (valore diretto o differenza) e interleave fra colonne li
+imposti tu, poi premi "Estrai bit con questa configurazione", che estrae i bit meno
+significativi realmente presenti nei dati incollati. Scegli la sorgente di destinazione e
+premi "Invia bit alla sorgente scelta". I bit restano soggetti alla stessa stima di
+min-entropia di Fase 1, che misura i numeri e non la loro origine fisica: una configurazione
+che sembra buona non dimostra che la sorgente sia imprevedibile.
 
 ### Fase 1 — Inserimento bit grezzi
 
@@ -52,8 +53,8 @@ rumore, ecc.) — il tool stesso non genera né simula entropia in nessuna fines
 - Formato accettato: **esadecimale** oppure **binario puro** (solo caratteri `0` e `1`).
 - Lunghezza minima per finestra: **256 bit**. Consigliato: almeno **600 bit**. Su bit
   casuali ideali (CSPRNG del browser, 1000 prove per lunghezza) la stima scende sotto la
-  soglia di esclusione 0,3 circa il 9% delle volte a 256 bit, meno dell'1% a 400 bit e in nessuna
-  delle 1000 prove a 603 bit.
+  soglia di esclusione 0,3 nel 7,9% delle prove a 256 bit (79 su 1000), nello 0,9% a 400 bit (9 su 1000) e in nessuna
+  delle 1000 prove a 603 bit (misura della riverifica del 12/10, Chromium).
 - Basta compilarne anche **una sola**: le altre restano semplicemente vuote e vengono
   ignorate. Funziona con 1, 2, 3 o 4 sorgenti indistintamente.
 - **Requisito sulle sorgenti:** ogni sorgente va prodotta in proprio, distrutta dopo l'uso,
@@ -68,22 +69,24 @@ rumore, ecc.) — il tool stesso non genera né simula entropia in nessuna fines
   fra più stimatori: MCV, Markov, t-Tuple, LRS, Collisione e, da 6012 bit in su, Compressione)
   e l'esito di due health test retrospettivi
   (RCT e APT) che intercettano pattern anomali (run troppo lunghi, bias locale).
-- Una sorgente con H_min troppo basso, o che fallisce RCT/APT, viene automaticamente
-  esclusa dal calcolo successivo — non serve rimuoverla a mano.
+- Una sorgente con H_min troppo basso viene automaticamente esclusa dal calcolo successivo.
+  Una sorgente con allarme RCT o APT viene esclusa con il messaggio «da verificare»: su sorgenti
+  lunghe l'RCT può dare falsi allarmi su dati buoni (vedi README, Audit e limiti noti). Non serve
+  rimuoverla a mano.
 - "Svuota" cancella una finestra e la relativa analisi.
+- Durante una stima compare in cima alla pagina un contatore in secondi con l'etichetta dello stimatore in corso. Avanza solo se il browser risponde. Il calcolo prosegue anche quando il contatore si ferma per un momento; se resta fermo per molto più di qualche secondo, segnalalo.
 
 **Consiglio pratico:** con una sola sorgente al minimo di 256 bit, capita occasionalmente (per
 pura variabilità statistica dei dati, non per un difetto del tool) che venga esclusa dal calcolo
 perché H_min scende sotto 0,3. Fornire più bit per singola sorgente aumenta il margine, rende
-questo caso raro e avvicina ai 1000 campioni richiesti dallo standard.
+questo caso raro e avvicina il numero di campioni per sorgente a quello richiesto dallo standard: almeno 1000 per ciascun insieme concatenato, 1.000.000 per un dataset unico.
 
-### Fase 2 — Concatenazione, checksum, correlazione
+### Fase 2 — Concatenazione, conteggio degli uni, correlazione
 
-Premi "Esegui FASE 2". Il tool concatena le sorgenti valide, verifica l'integrità con due
-checksum indipendenti, e — se hai compilato più di una sorgente — controlla la correlazione
+Premi "Esegui FASE 2". Il tool concatena le sorgenti valide, verifica il conteggio degli uni con due
+algoritmi distinti, e — se hai compilato più di una sorgente — controlla la correlazione
 tra le coppie di sorgenti su più ritardi temporali (±8 posizioni), non solo bit-per-bit
-allineati. Se tutto è a posto, calcola anche l'entropia assoluta stimata (in bit), che sarà
-il budget usato in Fase 4.
+allineati. Il flusso combinato viene poi rivalidato con gli stimatori: sotto 1.000.000 di bit con la battery completa (sei stimatori), sopra con il solo LRS. Se tutto è a posto, calcola l'entropia assoluta stimata (in bit), che sarà il budget usato in Fase 4: il minimo fra la stima per sorgente e quella misurata sul flusso combinato. Se la H_min combinata scende sotto 0,3, la Fase 2 si ferma.
 
 ### Fase 3 — Peres Extractor
 
@@ -109,7 +112,7 @@ supera mai la metà dei bit in uscita dalla Fase 3.
 Il seed della matrice di Toeplitz viene generato automaticamente combinando il timestamp
 CPU (per rendere ogni esecuzione tracciabile/unica) con `crypto.getRandomValues` (per la
 sicurezza), espanso alla lunghezza esatta necessaria — non serve calcolarlo o incollarlo a
-mano. Un campo di override manuale resta disponibile per utenti avanzati.
+mano. Un campo di override manuale resta disponibile per utenti avanzati: il seme inserito a mano viene rifiutato se è costante, periodico (periodo fino a 32) o con H_min sotto 0,3, e segnalato se sotto 0,8.
 
 ### Fase 5 — Test statistici NIST-style
 
@@ -123,7 +126,7 @@ i due casi.
 ### Output finale
 
 - **Doppio SHA-256**: premi il pulsante dedicato per ottenere `SHA-256(SHA-256(output))`,
-  mostrato come sequenza binaria continua e come esadecimale.
+  mostrato come sequenza binaria continua e come esadecimale. L'etichetta dichiara la forza di sicurezza: al più *m* bit (quelli della Fase 4), e avvisa quando *m* è sotto 256.
 - **SHAKE256 (opzionale)**: imposta la lunghezza di output desiderata in bit e premi
   "Calcola SHAKE256" per un output a lunghezza variabile (funzione XOF), calcolato sullo
   stesso input del doppio SHA-256 (l'output di Fase 4), non incatenato dopo di esso.
@@ -135,13 +138,13 @@ i due casi.
   Toeplitz, vettori di test SHA-256/SHAKE256, auto-consistenza statistica, stimatori
   LRS/Collisione/Compressione contro i valori ufficiali). Se qualcosa
   qui risultasse rosso/fallito, **non fidarti dei risultati della pipeline** finché non
-  viene risolto — significherebbe una regressione nel codice.
+  viene risolto — significherebbe una regressione nel codice. Con un autotest fallito le Fasi 1-5 e gli output finali restano bloccati, anche se i pulsanti vengono riabilitati a mano.
 - Il log di sessione, in fondo alla pagina, resta solo in RAM: non viene scritto su disco
   e sparisce alla chiusura della scheda.
 
 ## Verificare di avere l'ultima versione
 
-Sotto il titolo trovi una riga tipo `Build 2.0.0-beta6 (2026-10-02) — BETA NON AUDITATA.`.
+Sotto il titolo trovi una riga tipo `Build 2.0.0-beta7 (2026-10-12) — BETA NON AUDITATA.`.
 Confrontala con la voce in cima al file CHANGELOG.md incluso in questo pacchetto. Se non
 coincide, il browser sta probabilmente mostrando una copia in cache: ricarica forzando lo
 svuotamento cache (in Firefox: Ctrl+Shift+R) o riapri il file scaricato di recente.

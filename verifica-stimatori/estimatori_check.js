@@ -3,7 +3,7 @@
 // Estrae dall'HTML il blocco da "const Z99_90B" a "function combinedHmin": lo stesso codice che gira nella pagina.
 const fs = require('fs'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'entropy_pipeline.html'), 'utf8');
-const a = html.indexOf('const Z99_90B'), b = html.indexOf('function combinedHmin');
+const a = html.indexOf('const Z99_90B'), b = html.indexOf('function combinedHmin(');
 if (a < 0 || b < 0) { console.log('ERRORE: blocco degli stimatori non trovato'); process.exit(2); }
 const F = new Function(html.slice(a, b) + '; return {lrsHmin, collisionHmin, compressionHmin};')();
 let ok = 0, tot = 0, saltati = 0;

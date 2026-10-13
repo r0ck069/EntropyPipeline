@@ -64,6 +64,9 @@
    drift locale) che gli stimatori globali mediano via. Una sorgente che
    fallisce RCT o APT viene esclusa in Fase 2 indipendentemente dal suo
    H_min aggregato.
+   *[Nota del 13/10/2026, v2.0.0-beta7: l'RCT è applicato all'intera sorgente con α = 2⁻²⁰ per campione.
+   Su bit casuali ideali dà falsi allarmi nel 6,1% dei casi a 1.000.000 di bit (61 su 1000) e nel 23% a
+   4.000.000 (46 su 200). L'esclusione per allarme RCT/APT è segnalata come «da verificare». Soglia invariata.]*
 
 8. **Correlazione multi-lag tra sorgenti.** Il controllo precedente
    confrontava solo bit alla stessa posizione (lag 0): due sorgenti con un
@@ -153,7 +156,7 @@
     scelta (02/10/2026); (d) MCV della pagina (Clopper-Pearson esatto) è circa 0,0003-0,012
     meno prudente della formula del NIST; (e) oltre W = 52 la pagina restituisce 0 per l'LRS e
     lo segnala (scelta prudente: il NIST darebbe un valore); (f) validazione solo su dati
-    binari a 1 bit per campione e su sei flussi; (g) il tempo su 1.000.000 bit è circa 24 s
+    binari a 1 bit per campione e su sei flussi; (g) il tempo su 1.000.000 bit è circa 24 s *[Nota beta7: superato; misure in CHANGELOG, voce v2.0.0-beta7]*
     nel browser usato per le prove.
 
 ## Limiti architetturali che nessuna correzione di bug elimina
@@ -193,3 +196,5 @@ dal testo originale della beta2.
 formula «prima di un rilascio pubblico» qui sopra è rimasta dal testo originale della beta2.
 L'audit indipendente del 26/09/2026 ha trovato in questo strumento un difetto (punto 15),
 corretto nella v2.0.0-beta4.
+
+**Stato al 13/10/2026 (v2.0.0-beta7).** Stimatori modificati rispetto alla beta6: mcvHmin, tTupleHmin, tupleStats, lrsHmin, compressionHmin; aggiunti combinedHminAsync e il Web Worker. Controlli eseguiti: Compressione su due flussi di 100.000 e 1.000.000 bit, confrontata con valori di riferimento (8 confronti su 8); collisione e LRS su r603, confrontati con il riferimento Python (9 su 9 e 2 su 2); su un flusso di 1.000.000 di bit, valori identici tra Chrome, Edge, Firefox e il calcolo locale sullo stesso file. Non è stato eseguito un confronto diretto con la beta6 sui medesimi flussi. Misure di scarto su bit casuali ideali, Chromium, 13/10/2026: 256 bit 79 su 1000 sotto 0,3; 400 bit 9 su 1000; 603 bit 0 su 1000. La cifra della beta6 (89 su 1000 a 256 bit) è una misura precedente su un altro campione. Il controllo `verifica-stimatori/estimatori_check.js` aveva un marcatore di fine che, nella beta7, catturava `async function combinedHminAsync`: corretto in `function combinedHmin(`.
