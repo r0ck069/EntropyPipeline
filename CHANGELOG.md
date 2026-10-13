@@ -1,5 +1,9 @@
 # Changelog — Entropy Extraction Pipeline (Peres + Toeplitz)
 
+## 13/10/2026 — Documentazione: dichiarazione NIST sulle stime sotto 1.000.000 di campioni (issue #4)
+
+Modifiche solo a ISTRUZIONI.md e AUDIT-NOTES.md. Nessuna modifica al file `entropy_pipeline.html`: gli hash del blocco `core-script` e del file intero sono quelli della v2.0.0-beta7 indicati sotto. La soglia di 256 bit per sorgente resta invariata e senza eccezioni. Le stime di min-entropia ottenute con meno di 1.000.000 di campioni sono indicative e non costituiscono una validazione secondo NIST SP 800-90B (§3.1.1).
+
 ## v2.0.0-beta7 (2026-10-12) — NON ANCORA PUBBLICATA
 
 Hash finali (della copia di lavoro, da ricalcolare solo se il file cambia):

@@ -35,6 +35,8 @@
 
 4. **Potenza statistica dichiarata.** Con m tipico di poche centinaia di bit
    i p-value dei test finali sono indicativi, non probanti.
+   Le stime di min-entropia ottenute con meno di 1.000.000 di campioni sono indicative e non
+   costituiscono una validazione secondo NIST SP 800-90B (§3.1.1); vedi ISTRUZIONI.
 
 5. **Test troppo corti = N/A, non FAIL.** Ogni test NIST-style richiede una
    lunghezza minima (100 o 128 bit) per essere statisticamente

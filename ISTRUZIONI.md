@@ -60,11 +60,13 @@ rumore, ecc.) — il tool stesso non genera né simula entropia in nessuna fines
 - **Requisito sulle sorgenti:** ogni sorgente va prodotta in proprio, distrutta dopo l'uso,
   deve essere di qualità e indipendente dalle altre, e deve superare i test di «Analizza»
   prima di far parte dei bit candidati per la seed. Il tool non controlla la provenienza.
-- **Minimo e standard:** il minimo è di 256 bit per sorgente. Lo standard NIST SP 800-90B
+- **Minimo e standard:** il minimo è di 256 bit per sorgente, senza eccezioni. Lo standard NIST SP 800-90B
   (§3.1.1, punto 1) richiede un dataset sequenziale di almeno 1.000.000 di campioni grezzi dalla
   stessa sorgente; se non è possibile, ammette la concatenazione di insiemi più piccoli della
   stessa sorgente, con almeno 1000 campioni ciascuno. Il progetto concatena sorgenti diverse:
-  256 bit è una deviazione dichiarata, non una conformità (vedi README).
+  256 bit è una deviazione dichiarata, non una conformità (vedi README). Le stime di
+  min-entropia ottenute con meno di 1.000.000 di campioni sono indicative e non costituiscono
+  una validazione secondo NIST SP 800-90B.
 - Premi "Analizza" su ogni finestra compilata: mostra la stima di min-entropia (il minimo
   fra più stimatori: MCV, Markov, t-Tuple, LRS, Collisione e, da 6012 bit in su, Compressione)
   e l'esito di due health test retrospettivi
